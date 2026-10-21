@@ -80,15 +80,32 @@ export function usedDaysInRollingWindow(trips, todayStr, windowDays = 180) {
 }
 
 /**
+ * Días usados dentro del AÑO CALENDARIO de `dateStr` (1 de enero – 31 de
+ * diciembre, inclusivo en ambos extremos). Es el modelo que usan reglas como
+ * Colombia: "máximo 180 días continuos o discontinuos dentro del año calendario".
+ */
+export function usedDaysInCalendarYear(trips, dateStr) {
+  const date = parseDate(dateStr);
+  const year = date.getFullYear();
+  return daysPresentInRange(trips, `${year}-01-01`, `${year}-12-31`);
+}
+
+/**
  * Máximo de días que puede durar un NUEVO viaje que empieza en `start`
- * sin exceder `maxDays` en ninguna ventana móvil de `windowDays`.
+ * sin exceder `maxDays` según el tipo de ventana:
+ *
+ * - 'rolling' (por defecto, tipo Schengen): ninguna ventana móvil de
+ *   `windowDays` días puede superar `maxDays`.
+ * - 'calendar-year' (tipo Colombia): dentro de cada año calendario (1 ene –
+ *   31 dic) no se puede superar `maxDays`. La ventana se reinicia el 1 de
+ *   enero de cada año.
  *
  * Simula día a día: el viaje puede incluir el día d solo si el total de
- * presencia en [d - windowDays + 1, d] (incluyendo ese día) no supera maxDays.
+ * presencia en la ventana de ese día (incluyendo ese día) no supera maxDays.
  * Devuelve el número de días del nuevo viaje (0 si ni siquiera puede entrar).
  * `horizonDays` acota la simulación (techo del resultado).
  */
-export function maxDaysForNewTrip({ trips, start, windowDays = 180, maxDays = 90, horizonDays = 365, today }) {
+export function maxDaysForNewTrip({ trips, start, windowDays = 180, maxDays = 90, horizonDays = 365, today, windowType = 'rolling' }) {
   const startStr = start;
   const existing = mergeTrips(trips, today);
   const allStarts = [parseDate(startStr), ...existing.map(t => parseDate(t.start))];
@@ -102,13 +119,23 @@ export function maxDaysForNewTrip({ trips, start, windowDays = 180, maxDays = 90
     for (let i = s; i <= e; i++) present.add(i);
   }
 
+  // Inicio de la ventana que aplica a cada día simulado.
+  const windowStartIdx = (dayIdx, dayEpochMs) => {
+    if (windowType === 'calendar-year') {
+      const dayIso = isoOf(new Date(dayEpochMs));
+      return Math.round((parseDate(`${dayIso.slice(0, 4)}-01-01`) - epoch) / DAY_MS);
+    }
+    return dayIdx - windowDays + 1;
+  };
+
   const startIdx = Math.round((parseDate(startStr) - epoch) / DAY_MS);
   let added = 0;
 
   for (let d = startIdx; d < startIdx + horizonDays; d++) {
-    // Presencia en la ventana [d - windowDays + 1, d], contando el día d del nuevo viaje.
+    // Presencia en la ventana de este día, contando el día d del nuevo viaje.
     let count = 1; // el día d del nuevo viaje
-    for (let w = d - windowDays + 1; w <= d - 1; w++) {
+    const windowStart = windowStartIdx(d, epoch.getTime() + d * DAY_MS);
+    for (let w = windowStart; w <= d - 1; w++) {
       if (present.has(w)) count++;
     }
     if (count > maxDays) break;

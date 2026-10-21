@@ -177,3 +177,93 @@ export const COUNTRIES_LIST = [
   { code: 'BR', name: 'Brasil', flag: '🇧🇷' },
   { code: 'EC', name: 'Ecuador', flag: '🇪🇨' }
 ];
+
+/**
+ * Reglas migratorias VERIFICADAS por país (Fase 2).
+ *
+ * Cada regla incluye su fuente, URL y fecha de verificación (`verifiedAt`).
+ * La UI debe mostrar siempre estos datos junto a un disclaimer legal.
+ *
+ * Semántica de los campos (consistente con src/domain/rules.js):
+ * - allowedDays: días otorgados en el ingreso / por estancia inicial.
+ * - windowType: 'calendar-year' (tope reinicia el 1 de enero, p. ej. Colombia)
+ *               o 'rolling' (ventana móvil de `windowDays` días).
+ * - maxDaysInWindow: tope máximo acumulado dentro de la ventana.
+ */
+export const COUNTRY_RULES = {
+  CO: {
+    country: 'Colombia',
+    flag: '🇨🇴',
+    tourist: {
+      title: 'Permiso de Ingreso y Permanencia (PIP) por turismo',
+      allowedDays: 90,
+      windowDays: 180,
+      windowType: 'calendar-year',
+      maxDaysInWindow: 180,
+      summary:
+        'Al ingreso por turismo se autorizan hasta 90 días. La permanencia es prorrogable por otros 90 (solicítala antes de vencer tu autorización). El tope absoluto es 180 días — continuos o discontinuos — dentro del año calendario (1 de enero – 31 de diciembre); es improrrogable al alcanzarlos.',
+      source:
+        'Migración Colombia / Cancillería — Resolución 5477 del 22 de julio de 2022 (visa V, turismo); Decreto 1067 de 2015 · Resolución 2061 de 2020 (PIP)',
+      sourceUrl:
+        'https://www.cancilleria.gov.co/sites/default/files/2022-12/5477%20del%2022%20de%20julio%20de%202022%20(1).pdf',
+      verifiedAt: '2026-10-20'
+    }
+    // TODO Fase 2b: estudiante y trabajador (Student Visa / M Visa)
+  },
+
+  PE: {
+    country: 'Perú',
+    flag: '🇵🇪',
+    tourist: {
+      title: 'Turista / Visitante',
+      allowedDays: 90,
+      windowDays: 365,
+      windowType: 'rolling',
+      maxDaysInWindow: 183,
+      summary:
+        'Al ingreso suelen autorizar hasta 90 días (la cantidad se otorga en el sello/solicitud y varía según el oficial). Como visitante o turista puedes permanecer como máximo 183 días dentro de un periodo de 365 días. La prórroga se solicita ante la Superintendencia Nacional de Migraciones ANTES de que venza tu permiso. El pasaporte debe tener una validez mínima de 6 meses al ingreso.',
+      source:
+        'Superintendencia Nacional de Migraciones (Perú) · consulado peruano — requisitos de visitante/turista',
+      sourceUrl: 'https://www.migraciones.gob.pe/',
+      extraSources: [
+        'https://www.consulado.pe/es/hamburgo/tramite/Paginas/Visas/Issuance-of-Tourist-Visa.aspx'
+      ],
+      verifiedAt: '2026-10-20'
+    },
+    student: {
+      title: 'Prórroga de residencia (Residentes con calidad especial)',
+      allowedDays: 365,
+      windowDays: 365,
+      windowType: 'rolling',
+      maxDaysInWindow: 365,
+      summary:
+        'La prórroga de residencia en Perú otorga hasta 365 días y aplica a calidades de residencia especial (residente calificado, trabajador del mercado laboral, investigador) — no a estancia turística. Verifica en Migraciones tu calidad migratoria exacta antes de confiar en esta cifra.',
+      source: 'gob.pe — Prórroga de residencia (Perú)',
+      sourceUrl: 'https://www.gob.pe/12834',
+      verifiedAt: '2026-10-20'
+    }
+  }
+};
+
+/**
+ * Mapea ids de STAY_PRESETS → claves dentro de COUNTRY_RULES.
+ * Los presets sin datos verificados quedan fuera (getCountryRule → null).
+ */
+const STAY_TYPE_TO_RULE = {
+  tourist_90: 'tourist',
+  student: 'student'
+  // digital_nomad / work_visa: sin datos verificados en CO/PE → regla genérica
+};
+
+/**
+ * Devuelve la regla verificada para (país, tipo de estancia) o `null` si no
+ * hay datos verificados para esa combinación. La UI usa `null` para enseñar
+ * la nota genérica "datos no verificados" en lugar de inventar cifras.
+ */
+export function getCountryRule(countryCode, stayType) {
+  const byCountry = COUNTRY_RULES[countryCode];
+  if (!byCountry) return null;
+  const ruleKey = STAY_TYPE_TO_RULE[stayType] || stayType;
+  if (!byCountry[ruleKey]) return null;
+  return { ...byCountry[ruleKey], country: byCountry.country, flag: byCountry.flag };
+}

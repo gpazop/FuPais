@@ -1,7 +1,7 @@
 /**
  * NomadStay - Stay & Visa Tracker Application Logic
  */
-import { STAY_PRESETS, COUNTRIES_LIST } from '../data/presets.js';
+import { STAY_PRESETS, COUNTRIES_LIST, getCountryRule } from '../data/presets.js';
 import { parseDate, formatDateISO, formatDateSpanish, getDaysDifference, addDaysToDate, getLastAllowedDate } from '../domain/dates.js';
 import { escapeHtml, escapeIcsText, priorityLabel } from '../domain/format.js';
 
@@ -103,7 +103,14 @@ const elements = {
   dayDetailEventsContainer: document.getElementById('dayDetailEventsContainer'),
   btnCloseDayDetailModal: document.getElementById('btnCloseDayDetailModal'),
   btnCloseDayDetailBtn: document.getElementById('btnCloseDayDetailBtn'),
-  btnDayDetailAddEvent: document.getElementById('btnDayDetailAddEvent')
+  btnDayDetailAddEvent: document.getElementById('btnDayDetailAddEvent'),
+
+  // Regla de permanencia verificada (Fase 2)
+  ruleNote: document.getElementById('ruleNote'),
+  ruleNoteFlag: document.getElementById('ruleNoteFlag'),
+  ruleNoteTitle: document.getElementById('ruleNoteTitle'),
+  ruleNoteBody: document.getElementById('ruleNoteBody'),
+  ruleNoteSource: document.getElementById('ruleNoteSource')
 };
 
 
@@ -218,9 +225,54 @@ function loadPresetTasks(presetKey, shouldConfirm = true) {
 // UI Refresh
 function updateUI() {
   renderProfileInfo();
+  updateRuleNote();
   calculateMetrics();
   renderCalendar();
   renderTasks();
+}
+
+/**
+ * Muestra la regla de permanencia verificada para (país destino, tipo de estancia).
+ * Sin datos verificados (getCountryRule → null) muestra nota genérica, nunca cifras inventadas.
+ */
+function updateRuleNote() {
+  const dest = COUNTRIES_LIST.find(c => c.code === STATE.profile.destination) || { name: 'tu país de destino' };
+  const preset = STAY_PRESETS[STATE.profile.stayType] || STAY_PRESETS.student;
+  const rule = getCountryRule(STATE.profile.destination, STATE.profile.stayType);
+
+  if (!rule) {
+    elements.ruleNote.hidden = false;
+    elements.ruleNoteFlag.textContent = '❓';
+    elements.ruleNoteTitle.textContent = `Sin datos verificados — ${dest.name} · ${preset.name}`;
+    elements.ruleNoteBody.innerHTML =
+      `Todavía no hay cifras de permanencia verificadas para <strong>${escapeHtml(dest.name)}</strong> ` +
+      `con el tipo de estancia <strong>${escapeHtml(preset.name)}</strong>. La App calcula con los ` +
+      `días que indiques en tu perfil, pero esa cifra NO proviene de una fuente oficial verificada: ` +
+      `revisa la web de migraciones del país antes de planificar.`;
+    elements.ruleNoteSource.textContent = '';
+    return;
+  }
+
+  const anchor = (url, text) =>
+    `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(text)}</a>`;
+
+  const srcLinks = [];
+  if (rule.sourceUrl && rule.source) srcLinks.push(anchor(rule.sourceUrl, rule.source));
+  if (rule.extraSources) {
+    rule.extraSources.forEach((url) => {
+      let label = url;
+      try { label = new URL(url).hostname; } catch { /* URL inválida: ignora */ }
+      srcLinks.push(anchor(url, label));
+    });
+  }
+
+  elements.ruleNote.hidden = false;
+  elements.ruleNoteFlag.textContent = rule.flag || '📖';
+  elements.ruleNoteTitle.textContent = `${rule.country} · ${rule.title}`;
+  elements.ruleNoteBody.textContent = rule.summary;
+  elements.ruleNoteSource.innerHTML = srcLinks.length
+    ? `📄 Fuente: ${srcLinks.join(' · ')}${rule.verifiedAt ? ` · datos verificados el ${formatDateSpanish(rule.verifiedAt)}` : ''}`
+    : '';
 }
 
 function renderProfileInfo() {

@@ -3,6 +3,7 @@ import {
   mergeTrips,
   daysPresentInRange,
   usedDaysInRollingWindow,
+  usedDaysInCalendarYear,
   maxDaysForNewTrip
 } from '../src/domain/rules.js';
 
@@ -120,5 +121,84 @@ describe('maxDaysForNewTrip (regla 90/180 tipo Schengen)', () => {
     expect(
       maxDaysForNewTrip({ trips, start: '2026-02-01', windowDays: 60, maxDays: 30 })
     ).toBe(0);
+  });
+});
+
+describe('usedDaysInCalendarYear (año calendario, modelo Colombia)', () => {
+  it('cuenta solo los días dentro del año pedido', () => {
+    const trips = [
+      { start: '2025-11-01', end: '2025-12-31' }, // 2025: 61 días
+      { start: '2026-01-10', end: '2026-02-20' }  // 2026: 42 días
+    ];
+    // El año 2026 no incluye nada de 2025: la ventana se reinicia cada 1 de enero.
+    expect(usedDaysInCalendarYear(trips, '2026-03-15')).toBe(42);
+    expect(usedDaysInCalendarYear(trips, '2025-12-15')).toBe(61);
+  });
+
+  it('cuenta hasta la fecha dada en un año en curso', () => {
+    const trips = [{ start: '2026-04-01', end: '2026-05-05' }];
+    expect(usedDaysInCalendarYear(trips, '2026-05-05')).toBe(35);
+  });
+});
+
+describe('maxDaysForNewTrip con windowType=calendar-year', () => {
+  it('permite los maxDays completos en un año sin uso previo', () => {
+    expect(
+      maxDaysForNewTrip({
+        trips: [],
+        start: '2026-05-01',
+        windowDays: 180,
+        maxDays: 180,
+        horizonDays: 220,
+        windowType: 'calendar-year'
+      })
+    ).toBe(180);
+  });
+
+  it('no cuenta días de años anteriores (la ventana se reinicia el 1 de enero)', () => {
+    // 180 días enteros usados en 2025 NO bloquean el ingreso en 2026.
+    const trips = [{ start: '2025-06-01', end: '2025-11-27' }]; // 180 días
+    expect(
+      maxDaysForNewTrip({
+        trips,
+        start: '2026-01-01',
+        windowDays: 180,
+        maxDays: 180,
+        horizonDays: 200,
+        windowType: 'calendar-year'
+      })
+    ).toBe(180);
+  });
+
+  it('respeta el tope dentro de un mismo año calendario', () => {
+    // 120 días usados en 2026 → un nuevo viaje desde 2026-06-01 solo puede
+    // completar los 60 días restantes del tope de 180.
+    const trips = [{ start: '2026-01-01', end: '2026-04-30' }]; // 120 días
+    expect(
+      maxDaysForNewTrip({
+        trips,
+        start: '2026-06-01',
+        windowDays: 180,
+        maxDays: 180,
+        horizonDays: 220,
+        windowType: 'calendar-year'
+      })
+    ).toBe(60);
+  });
+
+  it('tras el cambio de año vuelve a permitir días', () => {
+    // 180 días completos usados en 2026 (ventana terminada a fines de año):
+    // un viaje que empieza el 1 de enero de 2027 arranca con la cuenta en 0.
+    const trips = [{ start: '2026-07-01', end: '2026-12-31' }];
+    expect(
+      maxDaysForNewTrip({
+        trips,
+        start: '2027-01-01',
+        windowDays: 180,
+        maxDays: 180,
+        horizonDays: 200,
+        windowType: 'calendar-year'
+      })
+    ).toBe(180);
   });
 });

@@ -924,3 +924,64 @@ body {
     font-size: 1.85rem;
   }
 }
+
+/* Regla de permanencia verificada (Fase 2) */
+.rule-note-card {
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: var(--radius-md);
+  padding: 1.1rem 1.4rem;
+  margin-bottom: 1.25rem;
+}
+
+.rule-note-card .rule-note-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.rule-note-card .rule-note-flag {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.rule-note-card .rule-note-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #c7d2fe;
+}
+
+.rule-note-card .rule-note-body {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--text-muted, #94a3b8);
+  margin: 0 0 0.75rem 0;
+}
+
+.rule-note-card .rule-note-source {
+  font-size: 0.75rem;
+  color: var(--text-dim, #64748b);
+  margin: 0 0 0.75rem 0;
+}
+
+.rule-note-card .rule-note-source a {
+  color: #a5b4fc;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.rule-note-card .rule-note-source a:hover {
+  color: #c7d2fe;
+}
+
+.rule-note-card .rule-note-disclaimer {
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--text-dim, #64748b);
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid var(--status-warning-border, rgba(245, 158, 11, 0.3));
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.8rem;
+  margin: 0;
+}
