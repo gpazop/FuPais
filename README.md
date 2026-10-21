@@ -4,6 +4,28 @@
 
 ---
 
+## 🏗️ Arquitectura (Fase 1b)
+
+Módulos ES con Vite + Vitest, separación de responsabilidades sin ciclos de imports:
+
+```
+src/
+├── main.js                 # Bootstrap (aplica tema, registra UI, arranca render)
+├── state/store.js          # Estado global (STATE) — sin dependencias del DOM
+├── ui/
+│   ├── elements.js         # Referencias a elementos del DOM (ULL)
+│   ├── render.js           # Render del dashboard, calendario y alertas (updateUI)
+│   └── app.js              # Inicialización, eventos y flujo de presets
+├── data/presets.js         # Reglas migratorias + trámites por país (getPresetTasks)
+└── (reglas de estancia por país: motor calendar-year para CO/PE verificados)
+```
+
+- **Reglas de permanencia**: motor *calendar-year* con datos verificados para 🇨🇴 Colombia (Resolución 5477 de 2022) y 🇵🇪 Perú (Topes 183/365 días) — panel informativo con fuente oficial.
+- **Trámites migratorios por país**: `getPresetTasks(countryCode, stayTypeId)` carga trámites verificados por país y tipo de estancia; cae en fallback a los presets genéricos cuando no hay datos del país.
+- **Tests**: `npx vitest run` cubre el motor de reglas (`tests/rules.test.js`) y los presets por país (`tests/presets.test.js`).
+
+---
+
 ## ✨ Características de la Fase 1 (Frontend & Diseño Interactivo)
 
 1. **Dashboard de Permanencia & Conteo de Días**:
@@ -37,36 +59,7 @@
 
 ---
 
-## 🚀 Despliegue en Vercel (Paso a Paso)
-
-Esta aplicación no requiere ningún build complejo ni dependencias pesadas, lo que la hace ultra rápida y 100% compatible con Vercel.
-
-### Opción A: Despliegue desde GitHub (Recomendado)
-
-1. Sube este proyecto a tu repositorio de GitHub:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit - NomadStay Web App"
-   git branch -M main
-   git remote add origin <URL_DE_TU_REPOSITORIO>
-   git push -u origin main
-   ```
-2. Entra en [vercel.com](https://vercel.com) e inicia sesión con tu cuenta de GitHub.
-3. Haz clic en **"Add New..." > "Project"**.
-4. Selecciona el repositorio recién creado y presiona **"Deploy"**.
-5. ¡Listo! Vercel te dará una URL pública tipo `https://tu-proyecto.vercel.app` en menos de 30 segundos.
-
-### Opción B: Despliegue directo mediante Vercel CLI
-
-```bash
-npm i -g vercel
-vercel
-```
-
----
-
-## 🗄️ Próxima Fase: Recomendación de Base de Datos Gratuita
+## 🗄️ Próxima Fase (Fase 3): Backend con Base de Datos Gratuita
 
 Para cuando pasemos al Backend y queramos que los datos se guarden en la nube con cuentas de usuario (login con Google / Email):
 
@@ -76,9 +69,11 @@ Para cuando pasemos al Backend y queramos que los datos se guarden en la nube co
 | **Neon**                   | 0.5 GB Postgres Serverless con ramificaciones (branching).                                  | Integración directa oficial con el Marketplace de Vercel.                                                        |
 | **Firebase Firestore**     | 1 GB de almacenamiento, 50,000 lecturas/día.                                               | Muy simple para desarrollo ágil sin configurar esquemas relacionales.                                            |
 
-### Hoja de ruta para la Fase 2 (Backend):
+### Hoja de ruta para la Fase 3 (Backend):
 
-1. Crear proyecto gratuito en **Supabase** o **Neon**.
+> ✅ La Fase 2 ya está lista: datos migratorios verificados para Colombia y Perú con panel de reglas oficiales.
+
+1. Crear proyecto gratuito en **Supabase** (recomendado).
 2. Diseñar las tablas relacionales:
    - `users` (id, email, país de origen, país de destino)
    - `stays` (id, user_id, arrival_date, allowed_days, stay_type)

@@ -267,3 +267,84 @@ export function getCountryRule(countryCode, stayType) {
   if (!byCountry[ruleKey]) return null;
   return { ...byCountry[ruleKey], country: byCountry.country, flag: byCountry.flag };
 }
+
+/**
+ * Trámites migratorios recomendados por PAÍS DE DESTINO (Fase 1b).
+ * Igual que COUNTRY_RULES: solo entradas con fuente verificada
+ * (verifiedAt: '2026-10-20'); los presets sin datos quedan fuera.
+ *
+ * dayOffset es 1-based (día de estancia): el día de llegada es el Día 1.
+ * Los offsets de "ventana de prórroga" son recordatorios de planificación
+ * (antes del vencimiento legal), no plazos legales.
+ */
+export const COUNTRY_TASKS = {
+  CO: {
+    tourist: [
+      {
+        title: 'Verificar sello / autorización de ingreso (PIP)',
+        dayOffset: 1,
+        category: 'Migraciones',
+        priority: 'high',
+        description: 'En el ingreso, Migración Colombia suele otorgar el Permiso de Ingreso y Permanencia (PIP) hasta por 90 días para turismo (Resolución 2061 de 2020). Verifica que la duración otorgada en tu sello/registro coincida con lo autorizado.'
+      },
+      {
+        title: 'Solicitar prórroga del PIP ante Migración Colombia (si necesitas más de 90 días)',
+        dayOffset: 60,
+        category: 'Migraciones',
+        priority: 'urgent',
+        description: 'El PIP de turismo puede prorrogarse una sola vez, hasta por un máximo igual al otorgado, ANTES de su vencimiento. Solicítalo en línea y guarda el resguardo de la solicitud.'
+      },
+      {
+        title: 'Tope de 90 días como turista (Resolución 5477 de 2022)',
+        dayOffset: 90,
+        category: 'Límite Legal',
+        priority: 'critical',
+        description: 'Con la Resolución 5477, la estancia máxima como turista en Colombia es de 90 días. Salir con el permiso vencido implica multa y posible sanción migratoria.'
+      }
+    ]
+  },
+  PE: {
+    tourist: [
+      {
+        title: 'Verificar días otorgados al ingreso (sello / registro)',
+        dayOffset: 1,
+        category: 'Migraciones',
+        priority: 'high',
+        description: 'La cantidad de días la otorga el oficial migratorio al ingresar (normalmente hasta 90). Conserva tu registro de entrada y verifica la fecha de vencimiento indicada.'
+      },
+      {
+        title: 'Solicitar prórroga ante la Superintendencia Nacional de Migraciones (si necesitas más días)',
+        dayOffset: 60,
+        category: 'Migraciones',
+        priority: 'urgent',
+        description: 'La prórroga se solicita ante Migraciones ANTES de que venza tu permiso de permanencia. Necesitas pasaporte vigente (mínimo 6 meses al ingreso). Consulta www.migraciones.gob.pe y gob.pe/12834.'
+      },
+      {
+        title: 'Tope de estancia como visitante: 183 días en un periodo de 365',
+        dayOffset: 180,
+        category: 'Límite Legal',
+        priority: 'high',
+        description: 'Como visitante puedes permanecer máximo 183 días dentro de un periodo de 365 días, aunque sumes prórrogas. Planifica tu salida para no superar este tope.'
+      }
+    ]
+  }
+};
+
+const STAY_TYPE_TO_TASK_KEYS = {
+  tourist_90: 'tourist',
+  student: 'student'
+  // digital_nomad / work_visa: sin datos verificados en CO/PE → preset genérico
+};
+
+/**
+ * Devuelve los trámites recomendados para (país de destino, tipo de estancia)
+ * o `null` cuando no hay datos verificados para esa combinación. En ese caso
+ * la UI cae al preset genérico de STAY_PRESETS (comportamiento previo).
+ */
+export function getPresetTasks(countryCode, stayType) {
+  const byCountry = COUNTRY_TASKS[countryCode];
+  if (!byCountry) return null;
+  const taskKey = STAY_TYPE_TO_TASK_KEYS[stayType] || stayType;
+  return byCountry[taskKey] || null;
+}
+
