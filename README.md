@@ -24,7 +24,7 @@
    - Checkboxes interactivos para marcar trámites cumplidos con actualización instantánea de métricas.
    - Botón para agregar trámites personalizados (título, fecha, categoría, requisitos y prioridad).
    - Presets inteligentes que cargan automáticamente los trámites habituales según tu condición:
-     - 🎓 **Estudiante**: Empadronamiento a los 15 días, huellas TIE a los 30 días, inicio de ventana de prórroga para Colombia 15 días antes con un máximo de 5 días antes del vencimiento.
+     - 🎓 **Estudiante**: Empadronamiento el día 14, huellas TIE el día 30, y ventana de prórroga que abre 60 días naturales antes del vencimiento (día 305 de una estancia de 365).
      - ✈️ **Turista (90 días Schengen)**: Alerta a los 45 días, alerta crítica a los 75 días, salida obligatoria el día 90.
      - 💻 **Nómada Digital**: Control de 183 días de residencia fiscal, acreditación de ingresos.
      - 💼 **Trabajo**: Seguridad social, apertura de cuenta, renovación laboral.

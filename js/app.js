@@ -135,6 +135,44 @@ function addDaysToDate(dateStr, days) {
   return formatDateISO(d);
 }
 
+/**
+ * Último día legal de estancia (conteo inclusivo: el día de llegada es el Día 1).
+ * Ej.: llegada 01/01 + 90 días autorizados => último día legal 31/03 (no 01/04).
+ */
+function getLastAllowedDate(arrivalStr, allowedDays) {
+  const days = Math.max(1, Number(allowedDays) || 365);
+  return addDaysToDate(arrivalStr, days - 1);
+}
+
+/** Escapa HTML para interpolación segura dentro de innerHTML. */
+function escapeHtml(text) {
+  return String(text == null ? '' : text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Escapa texto para propiedades de valor de texto en archivos .ics (RFC 5545). */
+function escapeIcsText(text) {
+  return String(text == null ? '' : text)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+
+/** Traduce el código de prioridad a una etiqueta legible en español. */
+function priorityLabel(priority) {
+  switch (priority) {
+    case 'urgent': return 'Urgente';
+    case 'critical': return 'Crítica';
+    case 'high': return 'Alta';
+    default: return 'Normal';
+  }
+}
+
 // Initialization
 function init() {
   loadState();
@@ -149,6 +187,11 @@ function loadState() {
 
   if (savedProfile) {
     STATE.profile = JSON.parse(savedProfile);
+    // Sanidad: datos viejos o corruptos no deben romper el conteo
+    const savedDays = Number(STATE.profile.allowedDays);
+    if (!Number.isFinite(savedDays) || savedDays < 1) {
+      STATE.profile.allowedDays = 365;
+    }
   } else {
     // Default initial profile for student arriving ~90 days ago
     const today = new Date();
@@ -219,7 +262,9 @@ function loadPresetTasks(presetKey, shouldConfirm = true) {
   const arrival = STATE.profile.arrivalDate || formatDateISO(new Date());
 
   const newTasks = preset.tasks.map((item, index) => {
-    const taskDate = addDaysToDate(arrival, item.dayOffset);
+    // dayOffset es 1-based (día de estancia): el día de llegada es el Día 1,
+    // por lo que el offset real desde la fecha de llegada es dayOffset - 1.
+    const taskDate = addDaysToDate(arrival, item.dayOffset - 1);
     return {
       id: 'task_' + Date.now() + '_' + index,
       title: item.title,
@@ -261,18 +306,18 @@ function calculateMetrics() {
   const arrival = parseDate(STATE.profile.arrivalDate);
   const allowed = Number(STATE.profile.allowedDays) || 365;
 
-  // Days Elapsed
-  const elapsed = Math.max(0, getDaysDifference(arrival, today));
+  // Days Elapsed (conteo inclusivo: el día de llegada es el Día 1)
+  const elapsed = today >= arrival ? getDaysDifference(arrival, today) + 1 : 0;
   elements.metricDaysElapsed.textContent = elapsed;
   elements.metricArrivalDate.textContent = `Llegada: ${formatDateSpanish(STATE.profile.arrivalDate)}`;
 
-  // Limit Date
-  const limitDateStr = addDaysToDate(STATE.profile.arrivalDate, allowed);
+  // Limit Date (último día legal, conteo inclusivo)
+  const limitDateStr = getLastAllowedDate(STATE.profile.arrivalDate, allowed);
   const limitDate = parseDate(limitDateStr);
   elements.metricLimitDate.textContent = `Límite legal: ${formatDateSpanish(limitDateStr)}`;
 
-  // Remaining Days
-  const remaining = allowed - elapsed;
+  // Remaining Days (incluye hoy: el último día legal aún cuenta como 1 día restante)
+  const remaining = Math.max(0, allowed - elapsed + 1);
   elements.metricDaysRemaining.textContent = remaining;
 
   // Progress Bar
@@ -376,7 +421,7 @@ function renderCalendar() {
 
   const todayStr = formatDateISO(new Date());
   const arrivalStr = STATE.profile.arrivalDate;
-  const limitDateStr = addDaysToDate(arrivalStr, STATE.profile.allowedDays);
+  const limitDateStr = getLastAllowedDate(arrivalStr, STATE.profile.allowedDays);
 
   const arrivalDate = parseDate(arrivalStr);
   const limitDate = parseDate(limitDateStr);
@@ -422,8 +467,10 @@ function renderCalendar() {
 
       dayTasks.forEach(task => {
         const dot = document.createElement('span');
-        dot.className = `event-dot ${task.completed ? 'completed' : task.priority}`;
-        dot.title = `${task.title} (${task.priority})`;
+        // 'critical' no tiene estilos propios; se mapea al rojo de 'urgent'
+        const dotClass = task.completed ? 'completed' : (task.priority === 'critical' ? 'urgent' : task.priority);
+        dot.className = `event-dot ${dotClass}`;
+        dot.title = `${task.title} (${priorityLabel(task.priority)})`;
         indicatorsWrap.appendChild(dot);
       });
 
@@ -496,11 +543,11 @@ function renderTasks() {
       <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''} title="Marcar como cumplido">
       <div class="task-body">
         <div class="task-meta-top">
-          <span class="task-category">${task.category || 'General'}</span>
-          <span class="task-urgency-badge ${task.priority}">${task.priority === 'urgent' ? 'Urgente' : task.priority === 'high' ? 'Alta' : 'Normal'}</span>
+          <span class="task-category">${escapeHtml(task.category || 'General')}</span>
+          <span class="task-urgency-badge ${task.priority}">${priorityLabel(task.priority)}</span>
         </div>
-        <div class="task-title">${task.title}</div>
-        ${task.description ? `<div class="task-desc">${task.description}</div>` : ''}
+        <div class="task-title">${escapeHtml(task.title)}</div>
+        ${task.description ? `<div class="task-desc">${escapeHtml(task.description)}</div>` : ''}
         <div class="task-date-info">
           <span>📅</span> <span>${dateBadgeText}</span>
         </div>
@@ -594,7 +641,7 @@ function openDayDetailModal(dateStr, tasksOnDay) {
   elements.dayDetailEventsContainer.innerHTML = '';
 
   const isArrival = dateStr === STATE.profile.arrivalDate;
-  const limitDateStr = addDaysToDate(STATE.profile.arrivalDate, STATE.profile.allowedDays);
+  const limitDateStr = getLastAllowedDate(STATE.profile.arrivalDate, STATE.profile.allowedDays);
   const isLimit = dateStr === limitDateStr;
 
   if (isArrival) {
@@ -630,11 +677,11 @@ function openDayDetailModal(dateStr, tasksOnDay) {
       taskDiv.innerHTML = `
         <div class="task-body">
           <div class="task-meta-top">
-            <span class="task-category">${task.category}</span>
-            <span class="task-urgency-badge ${task.priority}">${task.priority}</span>
+            <span class="task-category">${escapeHtml(task.category)}</span>
+            <span class="task-urgency-badge ${task.priority}">${priorityLabel(task.priority)}</span>
           </div>
-          <div class="task-title">${task.title}</div>
-          <div class="task-desc">${task.description || 'Sin notas adicionales.'}</div>
+          <div class="task-title">${escapeHtml(task.title)}</div>
+          <div class="task-desc">${escapeHtml(task.description || 'Sin notas adicionales.')}</div>
         </div>
       `;
       elements.dayDetailEventsContainer.appendChild(taskDiv);
@@ -671,7 +718,7 @@ function exportToICal() {
   ];
 
   // Add Limit Date event
-  const limitDateStr = addDaysToDate(STATE.profile.arrivalDate, STATE.profile.allowedDays);
+  const limitDateStr = getLastAllowedDate(STATE.profile.arrivalDate, STATE.profile.allowedDays);
   const limitCleanDate = limitDateStr.replace(/-/g, '');
   icsContent.push(
     'BEGIN:VEVENT',
@@ -692,8 +739,8 @@ function exportToICal() {
       `UID:${task.id}@nomadstay.app`,
       `DTSTAMP:${formatDateISO(new Date()).replace(/-/g, '')}T120000Z`,
       `DTSTART;VALUE=DATE:${cleanDate}`,
-      `SUMMARY:[${task.category || 'Trámite'}] ${task.title}`,
-      `DESCRIPTION:${(task.description || '').replace(/\n/g, '\\n')}`,
+      `SUMMARY:[${escapeIcsText(task.category || 'Trámite')}] ${escapeIcsText(task.title)}`,
+      `DESCRIPTION:${escapeIcsText(task.description || '')}`,
       `STATUS:${task.completed ? 'COMPLETED' : 'CONFIRMED'}`,
       'END:VEVENT'
     );
@@ -750,6 +797,18 @@ function bindEvents() {
   // Profile Form Submit
   elements.profileForm.addEventListener('submit', (e) => {
     e.preventDefault();
+
+    // Validaciones: fecha de llegada obligatoria y días autorizados >= 1
+    if (!elements.inputArrivalDate.value) {
+      alert('Debes indicar tu fecha de llegada al país de destino.');
+      return;
+    }
+    const parsedAllowedDays = Number(elements.inputAllowedDays.value);
+    if (!Number.isFinite(parsedAllowedDays) || parsedAllowedDays < 1) {
+      alert('Los días autorizados deben ser un número mayor o igual a 1.');
+      return;
+    }
+
     const oldStayType = STATE.profile.stayType;
     const newStayType = elements.selectStayPreset.value;
 
@@ -757,7 +816,7 @@ function bindEvents() {
     STATE.profile.destination = elements.selectDestination.value;
     STATE.profile.stayType = newStayType;
     STATE.profile.arrivalDate = elements.inputArrivalDate.value;
-    STATE.profile.allowedDays = Number(elements.inputAllowedDays.value) || 365;
+    STATE.profile.allowedDays = Math.floor(parsedAllowedDays);
 
     saveProfile();
     closeProfileModal();
@@ -783,6 +842,17 @@ function bindEvents() {
   // Task Form Submit
   elements.taskForm.addEventListener('submit', (e) => {
     e.preventDefault();
+
+    // Validaciones: título y fecha obligatorios
+    if (!elements.inputTaskTitle.value.trim()) {
+      alert('El trámite necesita un título.');
+      return;
+    }
+    if (!elements.inputTaskDate.value) {
+      alert('Debes indicar la fecha del trámite.');
+      return;
+    }
+
     const newTask = {
       id: elements.inputTaskId.value || 'task_' + Date.now(),
       title: elements.inputTaskTitle.value.trim(),

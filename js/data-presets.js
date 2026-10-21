@@ -1,5 +1,10 @@
 /**
- * Presets de trámites y reglas migratorias comunes por perfil
+ * Presets de trámites y reglas migratorias comunes por perfil.
+ *
+ * NOTA sobre `dayOffset`: es 1-based, es decir, cuenta "días de estancia".
+ * El día de llegada es el Día 1, por lo que `dayOffset: 14` significa
+ * "el día 14 de tu estancia" (13 días naturales después de la llegada).
+ * La app convierte esto a fecha con `addDaysToDate(arrival, dayOffset - 1)`.
  */
 const STAY_PRESETS = {
   student: {

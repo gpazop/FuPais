@@ -687,6 +687,13 @@ body {
   border: 1px solid var(--status-danger-border);
 }
 
+/* Prioridad 'critical': rojo más intenso que 'urgent' */
+.task-urgency-badge.critical {
+  background: rgba(220, 38, 38, 0.25);
+  color: #fca5a5;
+  border: 1px solid rgba(220, 38, 38, 0.6);
+}
+
 .task-urgency-badge.high {
   background: var(--status-warning-bg);
   color: var(--status-warning);

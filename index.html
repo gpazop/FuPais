@@ -76,7 +76,7 @@
       <div class="metric-card">
         <div>
           <div class="metric-icon-wrap primary">⏳</div>
-          <div class="metric-label">Días Fuera del País</div>
+          <div class="metric-label">Días de Estancia en Destino</div>
           <div class="metric-number" id="metricDaysElapsed">0</div>
         </div>
         <div class="metric-sub" id="metricArrivalDate">Llegada: Calculando...</div>
@@ -252,7 +252,7 @@
         </div>
 
         <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.2); padding: 0.75rem; border-radius: var(--radius-sm); font-size: 0.8rem; color: #cbd5e1; margin-bottom: 1.25rem;">
-          💡 <strong>Tip Migratorio:</strong> Para estudiantes suele ser 90 o 180 días con prórroga a gestionar como mínimo 5 días antes del vencimiento. Para turistas en zona Schengen/Europa son estrictamente 90 días.
+          💡 <strong>Tip Migratorio:</strong> La prórroga estudiantil suele poder solicitarse unos 60 días antes del vencimiento (en España, desde ~60 días antes y hasta el día del vencimiento). Para turistas en zona Schengen/Europa el límite es estricto: 90 días en cualquier periodo de 180.
         </div>
 
         <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
@@ -287,7 +287,8 @@
           <div class="form-group">
             <label class="form-label" for="selectTaskPriority">Prioridad / Urgencia</label>
             <select class="form-select" id="selectTaskPriority" required>
-              <option value="urgent">🚨 Urgente / Crítico</option>
+              <option value="urgent">🚨 Urgente</option>
+              <option value="critical">🔴 Crítica</option>
               <option value="high">⚠️ Alta (Atención)</option>
               <option value="medium" selected>🔹 Normal / Trámite Local</option>
             </select>
