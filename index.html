@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NomadStay | Control de Días Fuera del País y Alertas Migratorias</title>
+  <meta name="description" content="Aplicación inteligente de seguimiento de días fuera de tu país, control de prórrogas de permanencia, regla de 90 días y calendario de trámites migratorios.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌍</text></svg>">
+</head>
+<body>
+  <div class="ambient-glow"></div>
+
+  <div class="app-container">
+    <!-- Navbar Header -->
+    <header class="navbar" id="mainNavbar">
+      <div class="brand">
+        <div class="brand-icon">✈️</div>
+        <div class="brand-text">
+          <h1>NomadStay</h1>
+          <p>Control de Permanencia & Trámites en el Extranjero</p>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <button class="btn btn-glass" id="btnOpenProfileModal" title="Configurar viaje y perfil">
+          <span>⚙️</span> Mi Perfil de Viaje
+        </button>
+        <button class="btn btn-glass" id="btnExportCalendar" title="Descargar eventos en formato .ics">
+          <span>📅</span> Exportar a iCal
+        </button>
+        <button class="btn btn-primary" id="btnOpenNewTaskModal">
+          <span>➕</span> Nuevo Trámite
+        </button>
+      </div>
+    </header>
+
+    <!-- Hero / Status Banner -->
+    <section class="status-banner" id="statusBanner">
+      <div class="status-header">
+        <div class="profile-meta">
+          <div class="route-badge" id="routeBadge">
+            <span id="flagOrigin">🇨🇴</span> <span id="countryOriginName">Colombia</span>
+            <span class="route-arrow">➔</span>
+            <span id="flagDestination">🇪🇸</span> <span id="countryDestinationName">España</span>
+          </div>
+          <span class="route-badge" id="stayTypeBadge" style="color: #cbd5e1; font-size: 0.85rem;">
+            🎓 Estudiante (Visa / Permiso)
+          </span>
+        </div>
+        <div class="status-pill safe" id="statusPill">
+          <span>●</span>
+          <span id="statusPillText">Estancia en Regla</span>
+        </div>
+      </div>
+
+      <!-- Permanence Progress Bar -->
+      <div class="progress-container">
+        <div class="progress-labels">
+          <span style="color: var(--text-muted); font-size: 0.85rem;">
+            Día <strong id="progressDaysElapsed" style="color: #fff;">0</strong> de <strong id="progressDaysTotal" style="color: #fff;">365</strong> permitidos
+          </span>
+          <span id="progressPercentage" style="font-weight: 700; color: #a5b4fc;">0%</span>
+        </div>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill safe" id="progressBarFill" style="width: 15%;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Key Metrics Dashboard Cards -->
+    <section class="metrics-grid">
+      <!-- Metric 1: Days Elapsed -->
+      <div class="metric-card">
+        <div>
+          <div class="metric-icon-wrap primary">⏳</div>
+          <div class="metric-label">Días Fuera del País</div>
+          <div class="metric-number" id="metricDaysElapsed">0</div>
+        </div>
+        <div class="metric-sub" id="metricArrivalDate">Llegada: Calculando...</div>
+      </div>
+
+      <!-- Metric 2: Remaining Days -->
+      <div class="metric-card">
+        <div>
+          <div class="metric-icon-wrap safe" id="iconWrapRemaining">🛡️</div>
+          <div class="metric-label">Días Restantes de Estancia</div>
+          <div class="metric-number" id="metricDaysRemaining">0</div>
+        </div>
+        <div class="metric-sub" id="metricLimitDate">Límite legal: Calculando...</div>
+      </div>
+
+      <!-- Metric 3: Critical Next Task -->
+      <div class="metric-card">
+        <div>
+          <div class="metric-icon-wrap warning" id="iconWrapNextTask">📋</div>
+          <div class="metric-label">Próximo Trámite Clave</div>
+          <div class="metric-number" id="metricNextTaskDays" style="font-size: 1.6rem; color: #f59e0b;">-</div>
+        </div>
+        <div class="metric-sub" id="metricNextTaskTitle" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          Ninguno pendiente
+        </div>
+      </div>
+
+      <!-- Metric 4: Tasks Compliance -->
+      <div class="metric-card">
+        <div>
+          <div class="metric-icon-wrap cyan">✅</div>
+          <div class="metric-label">Trámites Gestionados</div>
+          <div class="metric-number" id="metricTasksProgress">0/0</div>
+        </div>
+        <div class="metric-sub">Cumplimiento documental</div>
+      </div>
+    </section>
+
+    <!-- Main Content Layout (Calendar & Task List) -->
+    <main class="dashboard-layout">
+      <!-- Left Column: Interactive Migration Calendar -->
+      <section class="calendar-card">
+        <div class="card-title-row">
+          <h2>
+            <span>🗓️</span> Calendario de Permanencia & Hitos
+          </h2>
+          <div class="cal-nav">
+            <button id="btnCalPrev" title="Mes anterior">◀</button>
+            <div class="cal-month-title" id="calMonthTitle">Octubre 2026</div>
+            <button id="btnCalNext" title="Mes siguiente">▶</button>
+            <button class="btn btn-glass btn-sm" id="btnCalToday" style="margin-left: 0.5rem;">Hoy</button>
+          </div>
+        </div>
+
+        <!-- Calendar Day Names Header -->
+        <div class="calendar-grid-header">
+          <div>Lun</div>
+          <div>Mar</div>
+          <div>Mié</div>
+          <div>Jue</div>
+          <div>Vie</div>
+          <div>Sáb</div>
+          <div>Dom</div>
+        </div>
+
+        <!-- Dynamic Days Grid -->
+        <div class="calendar-days-grid" id="calendarDaysGrid">
+          <!-- Injected via JavaScript -->
+        </div>
+
+        <!-- Calendar Legend -->
+        <div style="display: flex; gap: 1.25rem; flex-wrap: wrap; margin-top: 1.25rem; font-size: 0.75rem; color: var(--text-dim); border-top: 1px solid var(--border-color); padding-top: 1rem;">
+          <div style="display: flex; align-items: center; gap: 0.4rem;">
+            <div style="width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--primary); background: rgba(99, 102, 241, 0.2);"></div>
+            <span>Hoy</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.4rem;">
+            <div style="width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--status-safe); background: rgba(16, 185, 129, 0.2);"></div>
+            <span>Fecha de Llegada</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.4rem;">
+            <div style="width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--status-danger); background: rgba(239, 68, 68, 0.2);"></div>
+            <span>Límite de Estancia / Prórroga</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.4rem;">
+            <span class="event-dot urgent"></span>
+            <span>Trámite Crítico</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.4rem;">
+            <span class="event-dot medium"></span>
+            <span>Trámite Local</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Timeline & Procedures / Tasks -->
+      <section class="tasks-card">
+        <div class="card-title-row">
+          <h2>
+            <span>🚨</span> Alertas & Trámites Migratorios
+          </h2>
+          <button class="btn btn-glass btn-sm" id="btnQuickAddPresetTasks" title="Recargar lista de trámites recomendados para tu tipo de estancia">
+            🔄 Sugerencias
+          </button>
+        </div>
+
+        <p style="font-size: 0.85rem; color: var(--text-muted);">
+          No pierdas la prórroga ni plazos legales. Cada evento se sincroniza automáticamente con tu calendario.
+        </p>
+
+        <!-- Filter Chips -->
+        <div class="tasks-filter-bar">
+          <button class="filter-chip active" data-filter="all">Todos (<span id="countAll">0</span>)</button>
+          <button class="filter-chip" data-filter="pending">Pendientes (<span id="countPending">0</span>)</button>
+          <button class="filter-chip" data-filter="urgent">Urgentes (<span id="countUrgent">0</span>)</button>
+          <button class="filter-chip" data-filter="completed">Completados (<span id="countCompleted">0</span>)</button>
+        </div>
+
+        <!-- Tasks List Container -->
+        <div class="tasks-list" id="tasksListContainer">
+          <!-- Injected via JavaScript -->
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-tags">
+        <span class="tag-badge">🚀 Listo para desplegar en Vercel</span>
+        <span class="tag-badge">💾 Modo LocalStorage Activo</span>
+        <span class="tag-badge">☁️ Arquitectura preparada para Base de Datos Gratuita (Supabase/Neon)</span>
+      </div>
+      <div>
+        NomadStay &copy; 2026 &mdash; Tu asistente migratorio y de permanencia en el exterior.
+      </div>
+    </footer>
+  </div>
+
+  <!-- MODAL 1: Configurar Perfil de Viaje -->
+  <div class="modal-overlay" id="profileModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Configurar Mi Viaje & Estancia</h3>
+        <button class="modal-close" id="btnCloseProfileModal">&times;</button>
+      </div>
+
+      <form id="profileForm">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="selectOrigin">País de Origen</label>
+            <select class="form-select" id="selectOrigin" required></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="selectDestination">País de Destino</label>
+            <select class="form-select" id="selectDestination" required></select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="selectStayPreset">Tipo de Estancia / Visado</label>
+          <select class="form-select" id="selectStayPreset" required></select>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="inputArrivalDate">Fecha de Entrada al País</label>
+            <input type="date" class="form-input" id="inputArrivalDate" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="inputAllowedDays">Días Autorizados</label>
+            <input type="number" class="form-input" id="inputAllowedDays" min="1" max="1825" value="365" required>
+          </div>
+        </div>
+
+        <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.2); padding: 0.75rem; border-radius: var(--radius-sm); font-size: 0.8rem; color: #cbd5e1; margin-bottom: 1.25rem;">
+          💡 <strong>Tip Migratorio:</strong> Para estudiantes suele ser 90 o 180 días con prórroga a gestionar como mínimo 5 días antes del vencimiento. Para turistas en zona Schengen/Europa son estrictamente 90 días.
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+          <button type="button" class="btn btn-glass" id="btnCancelProfile">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar y Calcular</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: Crear / Editar Trámite o Evento -->
+  <div class="modal-overlay" id="taskModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="taskModalTitle">Nuevo Trámite o Hito Migratorio</h3>
+        <button class="modal-close" id="btnCloseTaskModal">&times;</button>
+      </div>
+
+      <form id="taskForm">
+        <input type="hidden" id="inputTaskId">
+
+        <div class="form-group">
+          <label class="form-label" for="inputTaskTitle">Título del Trámite / Evento</label>
+          <input type="text" class="form-input" id="inputTaskTitle" placeholder="Ej: Cita Prórroga de Estancia, Toma de Huellas TIE" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="inputTaskDate">Fecha Límite / Fecha Cita</label>
+            <input type="date" class="form-input" id="inputTaskDate" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="selectTaskPriority">Prioridad / Urgencia</label>
+            <select class="form-select" id="selectTaskPriority" required>
+              <option value="urgent">🚨 Urgente / Crítico</option>
+              <option value="high">⚠️ Alta (Atención)</option>
+              <option value="medium" selected>🔹 Normal / Trámite Local</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="inputTaskCategory">Categoría</label>
+          <input type="text" class="form-input" id="inputTaskCategory" placeholder="Ej: Renovación Migratoria, Consulado, Empadronamiento, Vuelo">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="inputTaskDesc">Detalles / Requisitos o Documentos</label>
+          <textarea class="form-textarea" id="inputTaskDesc" placeholder="Documentos a llevar: Pasaporte vigente, matrícula pagada, comprobante de seguro médico, tasa 790..."></textarea>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+          <button type="button" class="btn btn-glass" id="btnCancelTask">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveTask">Guardar Trámite</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: Inspeccionar Día de Calendario -->
+  <div class="modal-overlay" id="dayDetailModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="dayDetailModalTitle">Día Seleccionado</h3>
+        <button class="modal-close" id="btnCloseDayDetailModal">&times;</button>
+      </div>
+      <p id="dayDetailModalSubtitle" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;"></p>
+      
+      <div id="dayDetailEventsContainer" class="day-modal-events">
+        <!-- Eventos del día -->
+      </div>
+
+      <div style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+        <button class="btn btn-primary btn-sm" id="btnDayDetailAddEvent">
+          <span>➕</span> Agregar Evento en este Día
+        </button>
+        <button class="btn btn-glass btn-sm" id="btnCloseDayDetailBtn">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/data-presets.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
