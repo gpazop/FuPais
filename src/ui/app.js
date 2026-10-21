@@ -1,6 +1,11 @@
 /**
  * NomadStay - Stay & Visa Tracker Application Logic
  */
+import { STAY_PRESETS, COUNTRIES_LIST } from '../data/presets.js';
+import { parseDate, formatDateISO, formatDateSpanish, getDaysDifference, addDaysToDate, getLastAllowedDate } from '../domain/dates.js';
+import { escapeHtml, escapeIcsText, priorityLabel } from '../domain/format.js';
+
+export { init };
 
 // Application State
 const STATE = {
@@ -101,77 +106,6 @@ const elements = {
   btnDayDetailAddEvent: document.getElementById('btnDayDetailAddEvent')
 };
 
-// Utilities: Date Helpers
-function parseDate(dateStr) {
-  if (!dateStr) return new Date();
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(year, month - 1, day);
-}
-
-function formatDateISO(date) {
-  const d = new Date(date);
-  const month = '' + (d.getMonth() + 1);
-  const day = '' + d.getDate();
-  const year = d.getFullYear();
-
-  return [year, month.padStart(2, '0'), day.padStart(2, '0')].join('-');
-}
-
-function formatDateSpanish(dateStr) {
-  const d = parseDate(dateStr);
-  return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function getDaysDifference(date1, date2) {
-  const msPerDay = 1000 * 60 * 60 * 24;
-  const utc1 = Date.UTC(date1.getFullYear(), date1.getMonth(), date1.getDate());
-  const utc2 = Date.UTC(date2.getFullYear(), date2.getMonth(), date2.getDate());
-  return Math.floor((utc2 - utc1) / msPerDay);
-}
-
-function addDaysToDate(dateStr, days) {
-  const d = parseDate(dateStr);
-  d.setDate(d.getDate() + Number(days));
-  return formatDateISO(d);
-}
-
-/**
- * Último día legal de estancia (conteo inclusivo: el día de llegada es el Día 1).
- * Ej.: llegada 01/01 + 90 días autorizados => último día legal 31/03 (no 01/04).
- */
-function getLastAllowedDate(arrivalStr, allowedDays) {
-  const days = Math.max(1, Number(allowedDays) || 365);
-  return addDaysToDate(arrivalStr, days - 1);
-}
-
-/** Escapa HTML para interpolación segura dentro de innerHTML. */
-function escapeHtml(text) {
-  return String(text == null ? '' : text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-/** Escapa texto para propiedades de valor de texto en archivos .ics (RFC 5545). */
-function escapeIcsText(text) {
-  return String(text == null ? '' : text)
-    .replace(/\\/g, '\\\\')
-    .replace(/;/g, '\\;')
-    .replace(/,/g, '\\,')
-    .replace(/\r?\n/g, '\\n');
-}
-
-/** Traduce el código de prioridad a una etiqueta legible en español. */
-function priorityLabel(priority) {
-  switch (priority) {
-    case 'urgent': return 'Urgente';
-    case 'critical': return 'Crítica';
-    case 'high': return 'Alta';
-    default: return 'Normal';
-  }
-}
 
 // Initialization
 function init() {
@@ -889,4 +823,3 @@ function bindEvents() {
 }
 
 // Start app on DOMContentLoaded
-document.addEventListener('DOMContentLoaded', init);

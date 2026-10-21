@@ -6,7 +6,7 @@
  * "el día 14 de tu estancia" (13 días naturales después de la llegada).
  * La app convierte esto a fecha con `addDaysToDate(arrival, dayOffset - 1)`.
  */
-const STAY_PRESETS = {
+export const STAY_PRESETS = {
   student: {
     name: 'Estudiante (Visa / Permiso de Estudios)',
     icon: '🎓',
@@ -160,7 +160,7 @@ const STAY_PRESETS = {
   }
 };
 
-const COUNTRIES_LIST = [
+export const COUNTRIES_LIST = [
   { code: 'CO', name: 'Colombia', flag: '🇨🇴' },
   { code: 'ES', name: 'España', flag: '🇪🇸' },
   { code: 'MX', name: 'México', flag: '🇲🇽' },
