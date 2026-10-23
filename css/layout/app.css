@@ -1,0 +1,273 @@
+/* ========================================================
+   FUPAIS — MAIN DASHBOARD & LAYOUT
+   Archetype: Clinical Blueprint on Frosted Paper
+   ======================================================== */
+
+.app-container {
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: var(--spacing-24) var(--spacing-20) var(--spacing-48);
+  width: 100%;
+}
+
+/* NAVBAR / HEADER */
+.header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-32);
+  gap: var(--spacing-16);
+  flex-wrap: wrap;
+}
+
+.brand-section {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+}
+
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background-color: var(--color-ink);
+  color: #fafafa;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: -0.5px;
+}
+
+.brand-title {
+  font-size: var(--text-heading-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-heading-sm);
+  line-height: 1.1;
+  color: var(--color-ink);
+}
+
+.brand-subtitle {
+  font-size: 12px;
+  color: var(--color-mid-gray);
+  margin-top: 2px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  flex-wrap: wrap;
+}
+
+/* DASHBOARD GRID SYSTEM */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-24);
+}
+
+@media (min-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+/* TOP METRICS ROW */
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--spacing-16);
+  margin-bottom: var(--spacing-24);
+}
+
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* PROCEDURES & TASKS LIST */
+.procedure-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-12);
+}
+
+.procedure-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-12);
+  padding: var(--spacing-12);
+  border-radius: var(--radius-nested);
+  background-color: var(--surface-sidebar);
+  border: 1px solid var(--color-hairline);
+  transition: all 0.15s ease;
+}
+
+.procedure-item:hover {
+  background-color: #f3f3f3;
+  border-color: #d1d1d1;
+}
+
+.procedure-item.is-urgent {
+  border-left: 3px solid var(--color-ember);
+}
+
+.procedure-item.is-done {
+  opacity: 0.6;
+}
+
+.procedure-checkbox {
+  margin-top: 3px;
+  accent-color: var(--color-ink);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.procedure-body {
+  flex: 1;
+}
+
+.procedure-title {
+  font-size: 13px;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.procedure-desc {
+  font-size: 12px;
+  color: var(--color-mid-gray);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+.procedure-deadline {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--color-ember);
+  font-weight: 500;
+  margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* COUNTRY SELECTOR STRIP */
+.country-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  padding: var(--spacing-16) var(--spacing-20);
+  background-color: var(--color-paper);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-cards);
+  margin-bottom: var(--spacing-24);
+  box-shadow: var(--shadow-subtle);
+  flex-wrap: wrap;
+}
+
+.country-details {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+}
+
+.flag-avatar {
+  font-size: 26px;
+  line-height: 1;
+}
+
+/* MODAL OVERLAY */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(10, 10, 10, 0.4);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--spacing-16);
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal-card {
+  background-color: var(--color-paper);
+  border-radius: var(--radius-cards);
+  border: 1px solid var(--color-hairline);
+  box-shadow: var(--shadow-floating);
+  width: 100%;
+  max-width: 540px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--spacing-24);
+  position: relative;
+  animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-20);
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-24);
+  padding-top: var(--spacing-16);
+  border-top: 1px solid var(--color-hairline);
+}
+
+/* HELPER CARDS / RULES ACCORDION */
+.rule-pill-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-12);
+}
+
+.rule-pill {
+  font-size: 12px;
+  padding: 6px 12px;
+  background-color: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-badges);
+  color: var(--color-ink-soft);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rule-pill strong {
+  color: var(--color-ink);
+}

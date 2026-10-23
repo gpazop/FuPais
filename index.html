@@ -3,352 +3,923 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NomadStay | Control de Días Fuera del País y Alertas Migratorias</title>
-  <meta name="description" content="Aplicación inteligente de seguimiento de días fuera de tu país, control de prórrogas de permanencia, regla de 90 días y calendario de trámites migratorios.">
+  <title>FuPais — Conteo de Días Fuera de tu País y Control Migratorio</title>
+  <meta name="description" content="App web de diseño blueprint para seguimiento de días fuera de tu país, control de estancias por intercambio, turismo, prórrogas de permanencia y trámites migratorios reales con Dock interactivo estilo iOS / macOS.">
+  
+  <!-- Typography: Geist Google Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌍</text></svg>">
-</head>
-<body>
-  <div class="ambient-glow"></div>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
+  <!-- Design System Style Sheets -->
+  <link rel="stylesheet" href="css/base/variables.css">
+  <link rel="stylesheet" href="css/components/components.css">
+  <link rel="stylesheet" href="css/components/calendar.css">
+  <link rel="stylesheet" href="css/layout/app.css">
+  <link rel="stylesheet" href="css/components/dock.css">
+
+  <!-- Leaflet CSS & JS for Real Google Maps Engine, Layers & Markers -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+</head>
+<body class="dock-pos-bottom">
+
+  <!-- APP WRAPPER -->
   <div class="app-container">
-    <!-- Navbar Header -->
-    <header class="navbar" id="mainNavbar">
-      <div class="brand">
-        <div class="brand-icon">✈️</div>
-        <div class="brand-text">
-          <h1>NomadStay</h1>
-          <p>Control de Permanencia & Trámites en el Extranjero</p>
+
+    <!-- TOP HEADER / BRAND BAR -->
+    <header class="header-bar">
+      <div class="brand-section">
+        <div class="brand-logo" aria-label="Logo FuPais">NS</div>
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h1 class="brand-title">NomadStay</h1>
+            <span class="badge badge-outline">NSv2.0</span>
+          </div>
+          <p class="brand-subtitle">Gestión de estancia en el exterior, prórrogas y alertas legales oficiales</p>
         </div>
       </div>
-      <div class="nav-actions">
-        <button class="btn btn-glass" id="btnOpenProfileModal" title="Configurar viaje y perfil">
-          <span>⚙️</span> Mi Perfil de Viaje
-        </button>
-        <button class="btn btn-glass" id="btnExportCalendar" title="Descargar eventos en formato .ics">
-          <span>📅</span> Exportar a iCal
-        </button>
-        <button class="btn btn-primary" id="btnOpenNewTaskModal">
-          <span>➕</span> Nuevo Trámite
+
+      <div class="header-actions">
+        <!-- Preset selector -->
+        <select id="preset-selector" class="select" style="max-width: 320px; font-size: 13px;" title="Seleccionar perfil de normativa migratoria">
+          <option value="colombia_intercambio" selected>🇨🇴 Colombia — Estudiante Intercambio (PIP-2)</option>
+          <option value="colombia_turista">🇨🇴 Colombia — Turista (PIP-5 / PTP)</option>
+          <option value="espana_estudiante">🇪🇸 España — Estancia por Estudios (TIE)</option>
+          <option value="schengen_turista">🇪🇺 Schengen — Turista (Regla 90/180)</option>
+          <option value="mexico_canje">🇲🇽 México — Canje Residencia INM</option>
+        </select>
+
+        <!-- Status Pill -->
+        <div id="header-status-badge" class="badge badge-solid">
+          <span class="badge-dot"></span> Verificando...
+        </div>
+
+        <!-- Trip Configuration Trigger -->
+        <button id="btn-open-config" class="btn btn-outline btn-sm">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Ajustar Fechas
         </button>
       </div>
     </header>
 
-    <!-- Hero / Status Banner -->
-    <section class="status-banner" id="statusBanner">
-      <div class="status-header">
-        <div class="profile-meta">
-          <div class="route-badge" id="routeBadge">
-            <span id="flagOrigin">🇨🇴</span> <span id="countryOriginName">Colombia</span>
-            <span class="route-arrow">➔</span>
-            <span id="flagDestination">🇪🇸</span> <span id="countryDestinationName">España</span>
+    <!-- ========================================================
+         VIEW 1: INICIO (DASHBOARD PRINCIPAL)
+         ======================================================== -->
+    <div id="view-inicio" class="fupais-view active">
+      <!-- ACTIVE COUNTRY STRIP -->
+      <section class="country-strip">
+        <div class="country-details">
+          <div class="badge badge-solid" id="country-flag-badge" style="width: 36px; height: 36px; border-radius: 10px; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center;">
+            <span id="country-flag">CO</span>
           </div>
-          <span class="route-badge" id="stayTypeBadge" style="color: #cbd5e1; font-size: 0.85rem;">
-            🎓 Estudiante (Visa / Permiso)
+          <div>
+            <h2 class="text-subheading" id="country-title" style="font-size: 16px;">Colombia • Estudiante de Intercambio (PIP-2)</h2>
+            <p class="text-caption" id="country-subtitle" style="text-transform: none; margin-top: 2px;">
+              Cargando fechas de estancia...
+            </p>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <span class="rule-pill">
+            <strong>Ventana Legal:</strong> 15 a 5 días previos
           </span>
-        </div>
-        <div class="status-pill safe" id="statusPill">
-          <span>●</span>
-          <span id="statusPillText">Estancia en Regla</span>
-        </div>
-      </div>
-
-      <!-- Permanence Progress Bar -->
-      <div class="progress-container">
-        <div class="progress-labels">
-          <span style="color: var(--text-muted); font-size: 0.85rem;">
-            Día <strong id="progressDaysElapsed" style="color: #fff;">0</strong> de <strong id="progressDaysTotal" style="color: #fff;">365</strong> permitidos
+          <span class="rule-pill">
+            <strong>Extensión:</strong> +90 días PTP
           </span>
-          <span id="progressPercentage" style="font-weight: 700; color: #a5b4fc;">0%</span>
+          <a id="official-portal-link" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="display: none; height: 30px;">
+            Portal Oficial ↗
+          </a>
         </div>
-        <div class="progress-bar-track">
-          <div class="progress-bar-fill safe" id="progressBarFill" style="width: 15%;"></div>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- Regla de permanencia verificada (Fase 2: CO / PE) -->
-    <section class="rule-note-card" id="ruleNote" hidden>
-      <div class="rule-note-header">
-        <span class="rule-note-flag" id="ruleNoteFlag">📖</span>
-        <div class="rule-note-title" id="ruleNoteTitle">Regla de permanencia</div>
-      </div>
-      <p class="rule-note-body" id="ruleNoteBody"></p>
-      <p class="rule-note-source" id="ruleNoteSource"></p>
-      <p class="rule-note-disclaimer">
-        ℹ️ Información orientativa con fines de planificación. <strong>No es asesoría legal ni migratoria</strong> y los casos individuales pueden variar. Las reglas cambian: confirma siempre con la autoridad competente del país de destino antes de tomar decisiones.
-      </p>
-    </section>
+      <!-- SMART ALERT CALLOUT -->
+      <section id="smart-alert-container" style="margin-bottom: var(--spacing-24);">
+        <!-- Rendered dynamically by app.js -->
+      </section>
 
-    <!-- Key Metrics Dashboard Cards -->
-    <section class="metrics-grid">
-      <!-- Metric 1: Days Elapsed -->
-      <div class="metric-card">
-        <div>
-          <div class="metric-icon-wrap primary">⏳</div>
-          <div class="metric-label">Días de Estancia en Destino</div>
-          <div class="metric-number" id="metricDaysElapsed">0</div>
-        </div>
-        <div class="metric-sub" id="metricArrivalDate">Llegada: Calculando...</div>
-      </div>
-
-      <!-- Metric 2: Remaining Days -->
-      <div class="metric-card">
-        <div>
-          <div class="metric-icon-wrap safe" id="iconWrapRemaining">🛡️</div>
-          <div class="metric-label">Días Restantes de Estancia</div>
-          <div class="metric-number" id="metricDaysRemaining">0</div>
-        </div>
-        <div class="metric-sub" id="metricLimitDate">Límite legal: Calculando...</div>
-      </div>
-
-      <!-- Metric 3: Critical Next Task -->
-      <div class="metric-card">
-        <div>
-          <div class="metric-icon-wrap warning" id="iconWrapNextTask">📋</div>
-          <div class="metric-label">Próximo Trámite Clave</div>
-          <div class="metric-number" id="metricNextTaskDays" style="font-size: 1.6rem; color: #f59e0b;">-</div>
-        </div>
-        <div class="metric-sub" id="metricNextTaskTitle" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-          Ninguno pendiente
-        </div>
-      </div>
-
-      <!-- Metric 4: Tasks Compliance -->
-      <div class="metric-card">
-        <div>
-          <div class="metric-icon-wrap cyan">✅</div>
-          <div class="metric-label">Trámites Gestionados</div>
-          <div class="metric-number" id="metricTasksProgress">0/0</div>
-        </div>
-        <div class="metric-sub">Cumplimiento documental</div>
-      </div>
-    </section>
-
-    <!-- Main Content Layout (Calendar & Task List) -->
-    <main class="dashboard-layout">
-      <!-- Left Column: Interactive Migration Calendar -->
-      <section class="calendar-card">
-        <div class="card-title-row">
-          <h2>
-            <span>🗓️</span> Calendario de Permanencia & Hitos
-          </h2>
-          <div class="cal-nav">
-            <button id="btnCalPrev" title="Mes anterior">◀</button>
-            <div class="cal-month-title" id="calMonthTitle">Octubre 2026</div>
-            <button id="btnCalNext" title="Mes siguiente">▶</button>
-            <button class="btn btn-glass btn-sm" id="btnCalToday" style="margin-left: 0.5rem;">Hoy</button>
+      <!-- METRICS OVERVIEW ROW -->
+      <section class="metrics-row">
+        <!-- Main Metric: Days Abroad -->
+        <div class="card metric-card">
+          <div class="stat-block">
+            <span class="stat-label">Días Fuera de tu País</span>
+            <div class="stat-value">
+              <span id="stat-days-abroad">0</span>
+              <span class="stat-value-sub" id="stat-total-allowed">/ 0 días</span>
+            </div>
+          </div>
+          <div style="margin-top: var(--spacing-16);">
+            <div class="progress-bar-container">
+              <div class="progress-bar-fill" id="stay-progress-fill" style="width: 0%;"></div>
+            </div>
+            <div class="stat-footer">
+              <span id="stay-percent-text">0% transcurrido</span>
+            </div>
           </div>
         </div>
 
-        <!-- Calendar Day Names Header -->
-        <div class="calendar-grid-header">
-          <div>Lun</div>
-          <div>Mar</div>
-          <div>Mié</div>
-          <div>Jue</div>
-          <div>Vie</div>
-          <div>Sáb</div>
-          <div>Dom</div>
+        <!-- Metric: Days remaining to expiration -->
+        <div class="card metric-card">
+          <div class="stat-block">
+            <span class="stat-label">Días Restantes de Estancia Legal</span>
+            <div class="stat-value text-ember">
+              <span id="stat-days-remaining">0 días</span>
+            </div>
+          </div>
+          <div class="stat-footer">
+            <svg class="icon text-ember" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span id="stat-expiry-text">Calculando límite...</span>
+          </div>
         </div>
 
-        <!-- Dynamic Days Grid -->
-        <div class="calendar-days-grid" id="calendarDaysGrid">
-          <!-- Injected via JavaScript -->
-        </div>
-
-        <!-- Calendar Legend -->
-        <div style="display: flex; gap: 1.25rem; flex-wrap: wrap; margin-top: 1.25rem; font-size: 0.75rem; color: var(--text-dim); border-top: 1px solid var(--border-color); padding-top: 1rem;">
-          <div style="display: flex; align-items: center; gap: 0.4rem;">
-            <div style="width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--primary); background: rgba(99, 102, 241, 0.2);"></div>
-            <span>Hoy</span>
+        <!-- Metric: Prórroga & Grace status -->
+        <div class="card metric-card">
+          <div class="stat-block">
+            <span class="stat-label">Ventana de Prórroga PTP</span>
+            <div class="stat-value" style="font-size: 28px; line-height: 1.2;">
+              <span>15 a 5 Días</span>
+              <span class="stat-value-sub">previos a vencer</span>
+            </div>
           </div>
-          <div style="display: flex; align-items: center; gap: 0.4rem;">
-            <div style="width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--status-safe); background: rgba(16, 185, 129, 0.2);"></div>
-            <span>Fecha de Llegada</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 0.4rem;">
-            <div style="width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--status-danger); background: rgba(239, 68, 68, 0.2);"></div>
-            <span>Límite de Estancia / Prórroga</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 0.4rem;">
-            <span class="event-dot urgent"></span>
-            <span>Trámite Crítico</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 0.4rem;">
-            <span class="event-dot medium"></span>
-            <span>Trámite Local</span>
+          <div class="stat-footer">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span>Margen de respuesta: 3-5 días hábiles</span>
           </div>
         </div>
       </section>
 
-      <!-- Right Column: Timeline & Procedures / Tasks -->
-      <section class="tasks-card">
-        <div class="card-title-row">
-          <h2>
-            <span>🚨</span> Alertas & Trámites Migratorios
-          </h2>
-          <button class="btn btn-glass btn-sm" id="btnQuickAddPresetTasks" title="Recargar lista de trámites recomendados para tu tipo de estancia">
-            🔄 Sugerencias
+      <!-- DASHBOARD MAIN WORKSPACE: CALENDAR + PROCEDURES -->
+      <main class="dashboard-grid">
+        <!-- LEFT COLUMN: CALENDAR WITH EVENT ASSIGNMENTS -->
+        <section class="card" style="display: flex; flex-direction: column;">
+          <div class="card-header">
+            <div class="card-header-inner">
+              <h2 class="card-title">Calendario de Estancia y Conteo Diario</h2>
+              <p class="text-caption" style="text-transform: none;">
+                Haz clic en cualquier día para ver el recuento exacto, hitos migratorios o agregar recordatorios personales.
+              </p>
+            </div>
+          </div>
+
+          <!-- CALENDAR COMPONENT CONTAINER -->
+          <div id="calendar-mount-point">
+            <!-- Calendar rendered via calendar.js -->
+          </div>
+        </section>
+
+        <!-- RIGHT COLUMN: PROCEDURES CHECKLIST & REAL MIGRATION EVENTS -->
+        <aside style="display: flex; flex-direction: column; gap: var(--spacing-24);">
+          <!-- Procedures Card -->
+          <div class="card">
+            <div class="card-header">
+              <div class="card-header-inner">
+                <h2 class="card-title">Trámites y Obligaciones</h2>
+                <p class="text-caption" style="text-transform: none;">Hitos oficiales según tu calidad migratoria</p>
+              </div>
+            </div>
+
+            <!-- Dynamic Checklist -->
+            <div id="procedures-list-container" class="procedure-list">
+              <!-- Rendered by app.js -->
+            </div>
+
+            <div style="margin-top: 12px; font-size: 11px; color: var(--color-mid-gray); line-height: 1.35; padding: 8px 10px; background-color: var(--surface-sidebar); border-radius: 8px;">
+              ✦ <strong>Auto-extensión:</strong> Marcar la aprobación de la prórroga actualizará automáticamente tu fecha límite añadiendo los +90 días legales.
+            </div>
+          </div>
+
+          <!-- Guidance Card / Tips -->
+          <div class="card card-sm" style="background-color: var(--surface-sidebar);">
+            <div class="text-caption" style="margin-bottom: var(--spacing-8);">💡 ¿Por qué es crucial FuPais?</div>
+            <p style="font-size: 13px; color: var(--color-ink-soft); line-height: 1.45;">
+              En Colombia, el sistema de Migración no permite tramitar la prórroga con más de 15 días de antelación. Pero si esperas a que falten menos de 5 días, te arriesgas a quedar en <strong>estancia irregular</strong> debido a que la validación del pago y emisión del permiso toma de 3 a 5 días hábiles.
+            </p>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <!-- ========================================================
+         VIEW 2: MAPA EN TIEMPO REAL & PAÍSES DISPONIBLES
+         ======================================================== -->
+    <div id="view-mapa" class="fupais-view">
+      <div class="map-view-container">
+        <!-- Section Title & Status -->
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <h2 class="text-heading-sm">Radar Migratorio & Países Disponibles</h2>
+            <p class="text-caption" style="text-transform: none; margin-top: 2px;">
+              Rastreo satelital GPS en tiempo real de tu ubicación actual y exploración de países con normativas migratorias activas.
+            </p>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button id="btn-gps-locate" class="btn btn-primary btn-sm">
+              <svg class="icon" viewBox="0 0 24 24"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+              Ubicar mi GPS Actual
+            </button>
+            <span class="badge badge-solid" style="background-color: #0ea5e9; color: #fff;">
+              <span class="badge-dot" style="background-color: #fff;"></span> Live Tracker
+            </span>
+          </div>
+        </div>
+
+        <!-- Hero: Real Interactive Google Maps & Telemetry HUD -->
+        <div class="map-hero-grid">
+          <!-- Real Google Map Canvas & Floating Controls -->
+          <div class="map-interactive-wrapper">
+            <!-- Floating Map Toolbar -->
+            <div class="map-floating-bar">
+              <div class="map-search-box">
+                <svg class="icon" viewBox="0 0 24 24" style="color: var(--color-mid-gray);"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="map-search-input" placeholder="Buscar ciudad o país (ej. Medellín, Madrid)..." autocomplete="off" />
+                <button id="btn-map-search" class="btn btn-primary btn-sm" style="height: 28px; padding: 0 10px; font-size: 11px;">Buscar</button>
+              </div>
+
+              <div class="map-layer-pills">
+                <button class="map-layer-btn active" data-map-layer="streets" title="Capa de calles Google Maps">🗺️ Calles</button>
+                <button class="map-layer-btn" data-map-layer="satellite" title="Capa satelital real de Google">🛰️ Satélite</button>
+                <button class="map-layer-btn" data-map-layer="terrain" title="Capa de relieve y terreno">⛰️ Terreno</button>
+              </div>
+            </div>
+
+            <!-- The Real Google Map Viewport -->
+            <div id="real-google-map"></div>
+
+            <!-- Floating Helper Hint -->
+            <div class="map-hint-pill">
+              <span class="handle-live-dot"></span>
+              <span><strong>Modo interactivo:</strong> Haz clic en el mapa o arrastra el marcador para fijar tu posición manualmente.</span>
+            </div>
+          </div>
+
+          <!-- GPS Telemetry HUD & Controls -->
+          <div class="gps-hud-card">
+            <div>
+              <div class="text-caption">Telemetría de Navegación en Vivo</div>
+              <h3 class="text-subheading" style="margin-top: 4px;">Estado de Posición</h3>
+            </div>
+
+            <div class="telemetry-row">
+              <span class="telemetry-label">Coordenadas GPS:</span>
+              <span class="telemetry-value" id="hud-gps-coords">4.7110° N, 74.0721° W</span>
+            </div>
+
+            <div class="telemetry-row">
+              <span class="telemetry-label">Localidad / País:</span>
+              <span class="telemetry-value" id="hud-gps-city">Bogotá D.C., Colombia</span>
+            </div>
+
+            <div class="telemetry-row">
+              <span class="telemetry-label">Precisión Señal:</span>
+              <span class="telemetry-value" id="hud-gps-accuracy">Satelital ±5 metros</span>
+            </div>
+
+            <div class="telemetry-row">
+              <span class="telemetry-label">Estatus Legal de Zona:</span>
+              <span class="telemetry-value" style="color: #10b981;" id="hud-gps-legal">Territorio Colombiano — Estancia Legal</span>
+            </div>
+
+            <div id="gps-status-text" style="font-size: 11px; color: var(--color-mid-gray); line-height: 1.4;">
+              Rastreador activo. La señal se actualiza periódicamente para alertarte si cruzas fronteras o si cambias de jurisdicción migratoria.
+            </div>
+
+            <!-- Fast simulation buttons -->
+            <div style="margin-top: auto; padding-top: 12px; border-top: 1px solid var(--color-hairline);">
+              <div class="text-caption" style="margin-bottom: 8px;">Simular Cruce Fronterizo / Escala:</div>
+              <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button id="btn-sim-bogota" class="btn btn-outline btn-sm" style="flex: 1;">🇨🇴 Bogotá</button>
+                <button id="btn-sim-lima" class="btn btn-outline btn-sm" style="flex: 1;">🇵🇪 Lima</button>
+                <button id="btn-sim-madrid" class="btn btn-outline btn-sm" style="flex: 1;">🇪🇸 Madrid</button>
+                <button id="btn-sim-cdmx" class="btn btn-outline btn-sm" style="flex: 1;">🇲🇽 CDMX</button>
+                <button id="btn-sim-paris" class="btn btn-outline btn-sm" style="flex: 1;">🇪🇺 París</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Available Countries Catalog -->
+        <div style="margin-top: var(--spacing-16);">
+          <div class="text-caption">Directorio de Países y Normativas Migratorias</div>
+          <h3 class="text-heading-sm" style="margin-top: 4px;">Países Disponibles en el Sistema</h3>
+          <p class="text-body" style="font-size: 13px; color: var(--color-mid-gray);">
+            Selecciona cualquier país para cargar de inmediato sus leyes, tiempos de prórroga, requisitos oficiales y calculadoras.
+          </p>
+
+          <div class="countries-cards-grid">
+            <!-- Colombia Intercambio -->
+            <div class="country-interactive-card" data-select-preset="colombia_intercambio">
+              <div>
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-size: 28px;">🇨🇴</span>
+                  <span class="badge badge-solid">Activo</span>
+                </div>
+                <h4 class="country-name" style="font-weight: 600; font-size: 15px; margin-top: 8px;">Colombia</h4>
+                <p class="text-caption" style="text-transform: none; margin-top: 2px;">Estudiante Intercambio (PIP-2)</p>
+                <div style="font-size: 12px; color: var(--color-ink-soft); margin-top: 8px; line-height: 1.4;">
+                  90 días iniciales + 90 días con prórroga PTP. Radicación obligatoria entre 15 y 5 días antes.
+                </div>
+              </div>
+              <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 8px;">
+                Cargar este Destino ↗
+              </button>
+            </div>
+
+            <!-- Colombia Turista -->
+            <div class="country-interactive-card" data-select-preset="colombia_turista">
+              <div>
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-size: 28px;">🇨🇴</span>
+                  <span class="badge badge-outline">Turismo</span>
+                </div>
+                <h4 class="country-name" style="font-weight: 600; font-size: 15px; margin-top: 8px;">Colombia</h4>
+                <p class="text-caption" style="text-transform: none; margin-top: 2px;">Turista / Visitante (PIP-5)</p>
+                <div style="font-size: 12px; color: var(--color-ink-soft); margin-top: 8px; line-height: 1.4;">
+                  Hasta 180 días por año calendario. Requiere prórroga PTP vía FUT con pago de tasa.
+                </div>
+              </div>
+              <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 8px;">
+                Cargar este Destino ↗
+              </button>
+            </div>
+
+            <!-- España Estudiante -->
+            <div class="country-interactive-card" data-select-preset="espana_estudiante">
+              <div>
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-size: 28px;">🇪🇸</span>
+                  <span class="badge badge-outline">Estudios</span>
+                </div>
+                <h4 class="country-name" style="font-weight: 600; font-size: 15px; margin-top: 8px;">España</h4>
+                <p class="text-caption" style="text-transform: none; margin-top: 2px;">Estancia de Estudios (TIE / MERCURIO)</p>
+                <div style="font-size: 12px; color: var(--color-ink-soft); margin-top: 8px; line-height: 1.4;">
+                  365 días de validez. Prórroga telemática 60 días antes del vencimiento en plataforma MERCURIO.
+                </div>
+              </div>
+              <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 8px;">
+                Cargar este Destino ↗
+              </button>
+            </div>
+
+            <!-- Espacio Schengen -->
+            <div class="country-interactive-card" data-select-preset="schengen_turista">
+              <div>
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-size: 28px;">🇪🇺</span>
+                  <span class="badge badge-outline">Regla 90/180</span>
+                </div>
+                <h4 class="country-name" style="font-weight: 600; font-size: 15px; margin-top: 8px;">Espacio Schengen</h4>
+                <p class="text-caption" style="text-transform: none; margin-top: 2px;">Turista sin visado (29 países europeos)</p>
+                <div style="font-size: 12px; color: var(--color-ink-soft); margin-top: 8px; line-height: 1.4;">
+                  Máximo 90 días en cualquier ventana móvil de 180 días. Plazo fatal sin prórrogas ordinarias.
+                </div>
+              </div>
+              <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 8px;">
+                Cargar este Destino ↗
+              </button>
+            </div>
+
+            <!-- México Canje INM -->
+            <div class="country-interactive-card" data-select-preset="mexico_canje">
+              <div>
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <span style="font-size: 28px;">🇲🇽</span>
+                  <span class="badge badge-outline">Residencia</span>
+                </div>
+                <h4 class="country-name" style="font-weight: 600; font-size: 15px; margin-top: 8px;">México</h4>
+                <p class="text-caption" style="text-transform: none; margin-top: 2px;">Canje Residencia Estudiante (INM)</p>
+                <div style="font-size: 12px; color: var(--color-ink-soft); margin-top: 8px; line-height: 1.4;">
+                  Plazo fatal e improrrogable de 30 días calendario tras aterrizar para tramitar tarjeta física ante el INM.
+                </div>
+              </div>
+              <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 8px;">
+                Cargar este Destino ↗
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================
+         VIEW 3: ARCHIVOS & BÓVEDA DIGITAL DE DOCUMENTOS
+         ======================================================== -->
+    <div id="view-archivos" class="fupais-view">
+      <div class="files-vault-container">
+        <!-- Vault Header -->
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+          <div>
+            <h2 class="text-heading-sm">Bóveda de Documentos Migratorios</h2>
+            <p class="text-caption" style="text-transform: none; margin-top: 2px;">
+              Almacena, respalda y verifica tus pasaportes, sellos de entrada, cartas universitarias y formularios FUT.
+            </p>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="document.getElementById('vault-file-input').click()">
+            <svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Subir Documento
           </button>
         </div>
 
-        <p style="font-size: 0.85rem; color: var(--text-muted);">
-          No pierdas la prórroga ni plazos legales. Cada evento se sincroniza automáticamente con tu calendario.
-        </p>
+        <!-- Hidden input for file picking -->
+        <input type="file" id="vault-file-input" multiple accept=".pdf,.png,.jpg,.jpeg,.doc,.docx" style="display: none;" />
 
-        <!-- Filter Chips -->
-        <div class="tasks-filter-bar">
-          <button class="filter-chip active" data-filter="all">Todos (<span id="countAll">0</span>)</button>
-          <button class="filter-chip" data-filter="pending">Pendientes (<span id="countPending">0</span>)</button>
-          <button class="filter-chip" data-filter="urgent">Urgentes (<span id="countUrgent">0</span>)</button>
-          <button class="filter-chip" data-filter="completed">Completados (<span id="countCompleted">0</span>)</button>
+        <!-- Interactive Drag & Drop Area -->
+        <div class="file-dropzone" id="vault-dropzone">
+          <div style="width: 52px; height: 52px; border-radius: 50%; background: rgba(14, 165, 233, 0.1); display: flex; align-items: center; justify-content: center; color: #0284c7;">
+            <svg class="icon icon-lg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <div>
+            <div style="font-weight: 600; font-size: 15px; color: var(--color-ink);">Arrastra y suelta tus archivos aquí</div>
+            <div style="font-size: 12px; color: var(--color-mid-gray); margin-top: 4px;">Soporta PDF, JPG, PNG o documentos de hasta 25 MB</div>
+          </div>
         </div>
 
-        <!-- Tasks List Container -->
-        <div class="tasks-list" id="tasksListContainer">
-          <!-- Injected via JavaScript -->
+        <!-- Category Filter Tabs -->
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button class="btn btn-outline btn-sm files-filter-btn active" data-filter="todos">Todos los Documentos</button>
+          <button class="btn btn-outline btn-sm files-filter-btn" data-filter="pasaporte">Pasaportes & DNI</button>
+          <button class="btn btn-outline btn-sm files-filter-btn" data-filter="visas">Visas & Sellos</button>
+          <button class="btn btn-outline btn-sm files-filter-btn" data-filter="prorrogas">Prórrogas PTP & FUT</button>
+          <button class="btn btn-outline btn-sm files-filter-btn" data-filter="academico">Académicos</button>
         </div>
-      </section>
-    </main>
 
-    <!-- Footer -->
-    <footer class="footer">
-      <div class="footer-tags">
-        <span class="tag-badge">🚀 Listo para desplegar en Vercel</span>
-        <span class="tag-badge">💾 Modo LocalStorage Activo</span>
-        <span class="tag-badge">☁️ Arquitectura preparada para Base de Datos Gratuita (Supabase/Neon)</span>
+        <!-- Files Grid -->
+        <div class="files-grid" id="vault-files-grid">
+          <!-- Rendered dynamically by dock.js -->
+        </div>
       </div>
-      <div>
-        NomadStay &copy; 2026 &mdash; Tu asistente migratorio y de permanencia en el exterior.
+    </div>
+
+    <!-- ========================================================
+         VIEW 4: PERFIL DEL VIAJERO / NÓMADA
+         ======================================================== -->
+    <div id="view-perfil" class="fupais-view">
+      <div class="profile-view-container">
+        <!-- Digital Passport Card (iOS Apple Wallet aesthetic) -->
+        <div class="passport-card">
+          <div class="passport-watermark">PASSPORT</div>
+          <div class="passport-stamp-seal">MIGRACIÓN COLOMBIA • PIP-2</div>
+
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; position: relative; z-index: 2;">
+            <div style="display: flex; gap: 16px; align-items: center;">
+              <!-- Traveler Avatar -->
+              <div style="width: 72px; height: 72px; border-radius: 18px; background: linear-gradient(135deg, #38bdf8, #2563eb); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 700; color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,0.3);">
+                AP
+              </div>
+              <div>
+                <span class="badge badge-solid" style="background: rgba(255, 255, 255, 0.15); color: #fff; font-size: 11px;">
+                  🇵🇪 Nacionalidad: Peruana
+                </span>
+                <h3 style="font-size: 22px; font-weight: 700; margin-top: 4px;">Arturo P. P.</h3>
+                <p style="font-size: 13px; color: #94a3b8;">Estudiante de Intercambio Internacional • U. Santo Tomás</p>
+              </div>
+            </div>
+
+            <div style="text-align: right;">
+              <div class="text-caption" style="color: #94a3b8;">Número de Pasaporte</div>
+              <div style="font-family: var(--font-mono); font-size: 16px; font-weight: 700; letter-spacing: 1px; color: #38bdf8;">
+                PE-78249012
+              </div>
+              <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">Vence: 14 Jul 2031 (Vigente)</div>
+            </div>
+          </div>
+
+          <!-- Traveler Stats Row -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-top: 28px; padding-top: 20px; border-top: 1px solid rgba(255, 255, 255, 0.1); position: relative; z-index: 2;">
+            <div>
+              <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase;">Días Fuera de Perú</div>
+              <div style="font-size: 24px; font-weight: 700; color: #fff; margin-top: 2px;">78 Días</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase;">Límite de Permiso</div>
+              <div style="font-size: 24px; font-weight: 700; color: #38bdf8; margin-top: 2px;">12 Días Restantes</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase;">Países Visitados</div>
+              <div style="font-size: 24px; font-weight: 700; color: #fff; margin-top: 2px;">3 Países</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase;">Estatus Migratorio</div>
+              <div style="font-size: 14px; font-weight: 600; color: #4ade80; margin-top: 6px;">✓ Estancia Regular</div>
+            </div>
+          </div>
+
+          <!-- Machine Readable Zone (MRZ) Barcode simulation -->
+          <div class="passport-mrz-code">
+            P&lt;PERP&lt;&lt;ARTURO&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;<br>
+            782490124PER0105154M3107142COL&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;06
+          </div>
+        </div>
+
+        <!-- Identity & Emergency Contacts Form -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-header-inner">
+              <h3 class="card-title">Datos Personales y Contactos de Emergencia</h3>
+              <p class="text-caption" style="text-transform: none;">Información protegida en el almacenamiento seguro de tu dispositivo.</p>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--spacing-16);">
+            <div class="input-group">
+              <label class="input-label">Nombre Completo del Titular:</label>
+              <input type="text" class="input" value="Arturo P. P." />
+            </div>
+            <div class="input-group">
+              <label class="input-label">Universidad / Institución de Origen:</label>
+              <input type="text" class="input" value="Universidad Santo Tomás (Colombia) / Intercambio" />
+            </div>
+            <div class="input-group">
+              <label class="input-label">Contacto Consular / Familiar:</label>
+              <input type="text" class="input" value="Consulado General del Perú en Bogotá (+57 601 746-0900)" />
+            </div>
+            <div class="input-group">
+              <label class="input-label">Póliza de Asistencia Médica Internacional:</label>
+              <input type="text" class="input" value="Assist Card Intercambio #AC-994821" />
+            </div>
+          </div>
+        </div>
       </div>
-    </footer>
+    </div>
+
+    <!-- ========================================================
+         VIEW 5: CONFIGURACIÓN & PREFERENCIAS DEL DOCK
+         ======================================================== -->
+    <div id="view-configuracion" class="fupais-view">
+      <div class="settings-view-container">
+        <div>
+          <h2 class="text-heading-sm">Configuración del Sistema</h2>
+          <p class="text-caption" style="text-transform: none; margin-top: 2px;">
+            Personaliza el comportamiento, posición y diseño de la barra de navegación.
+          </p>
+        </div>
+
+        <!-- Group: Dock Preferences -->
+        <div class="settings-group">
+          <h3 class="text-subheading" style="font-size: 16px;">Personalización de la Barra de Navegación</h3>
+
+          <!-- Row: Dock Position -->
+          <div class="settings-row">
+            <div class="settings-info">
+              <span class="settings-title">Posición en la Pantalla</span>
+              <span class="settings-desc">Elige dónde ubicar el Dock para que no interfiera con tu flujo de trabajo</span>
+            </div>
+            <div class="segmented-control">
+              <button class="segment-btn active" data-set-dock-pos="bottom">Abajo (Bottom)</button>
+              <button class="segment-btn" data-set-dock-pos="left">Izquierda (Left)</button>
+              <button class="segment-btn" data-set-dock-pos="top">Arriba (Top)</button>
+            </div>
+          </div>
+
+          <!-- Row: Auto-hide -->
+          <div class="settings-row">
+            <div class="settings-info">
+              <span class="settings-title">Auto-ocultar Dock al perder foco</span>
+              <span class="settings-desc">Esconde la barra automáticamente y muestra la señal "Home Bar" en el borde</span>
+            </div>
+            <label class="ios-switch">
+              <input type="checkbox" id="switch-dock-autohide" />
+              <span class="ios-slider"></span>
+            </label>
+          </div>
+
+          <!-- Row: Magnification Hover Effect -->
+          <div class="settings-row">
+            <div class="settings-info">
+              <span class="settings-title">Efecto Lupa de Aumento</span>
+              <span class="settings-desc">Efecto dinámico animado al pasar el cursor sobre los iconos</span>
+            </div>
+            <label class="ios-switch">
+              <input type="checkbox" id="switch-dock-magnify" checked />
+              <span class="ios-slider"></span>
+            </label>
+          </div>
+
+          <!-- Row: Sound Effects -->
+          <div class="settings-row">
+            <div class="settings-info">
+              <span class="settings-title">Sonidos Hápticos de Interfaz</span>
+              <span class="settings-desc">Retroalimentación sonora sutil al cambiar de pestaña o pulsar botones</span>
+            </div>
+            <label class="ios-switch">
+              <input type="checkbox" id="switch-dock-sound" checked />
+              <span class="ios-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Group: Appearance -->
+        <div class="settings-group">
+          <h3 class="text-subheading" style="font-size: 16px;">Tema y Apariencia Visual</h3>
+
+          <!-- Theme switcher -->
+          <div class="settings-row">
+            <div class="settings-info">
+              <span class="settings-title">Modo de Color</span>
+              <span class="settings-desc">Alterna entre aspecto claro u oscuro estilo Dark Mode</span>
+            </div>
+            <div class="segmented-control">
+              <button class="segment-btn active" data-set-theme="light">Claro</button>
+              <button class="segment-btn" data-set-theme="dark">Oscuro</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Group: Google Maps Integration Settings -->
+        <div class="settings-group">
+          <h3 class="text-subheading" style="font-size: 16px;">Integración de Google Maps (Frontend)</h3>
+          
+          <div class="settings-row">
+            <div class="settings-info">
+              <span class="settings-title">Capas y Satélite de Google Maps</span>
+              <span class="settings-desc">Carga directa en el navegador de capas Google Calles (Roadmap), Satélite Híbrido y Terreno con interacción completa</span>
+            </div>
+            <span class="badge badge-solid" style="background-color: #0ea5e9; color: #fff;">100% Frontend Activo</span>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-info">
+              <span class="settings-title">Clave de API de Google Maps Platform (Opcional)</span>
+              <span class="settings-desc">Si dispones de tu propia API Key de Google Cloud Console para servicios premium</span>
+            </div>
+            <div style="display: flex; gap: 8px; width: 100%; max-width: 320px;">
+              <input type="password" id="cfg-google-api-key" class="input" placeholder="AIzaSy..." style="font-size: 12px; height: 32px;" />
+              <button class="btn btn-outline btn-sm" id="btn-save-maps-key">Guardar</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Group: Trip Adjustment -->
+        <div class="settings-group">
+          <h3 class="text-subheading" style="font-size: 16px;">Parámetros del Viaje Actual</h3>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+            <div>
+              <div style="font-size: 14px; font-weight: 600;">Fechas de Llegada y Límite Legal</div>
+              <div style="font-size: 12px; color: var(--color-mid-gray);">Actualiza manualmente tu fecha de ingreso o la extensión otorgada.</div>
+            </div>
+            <button class="btn btn-outline" onclick="window.fuPaisApp.openConfigModal()">
+              Modificar Parámetros ↗
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
-  <!-- MODAL 1: Configurar Perfil de Viaje -->
-  <div class="modal-overlay" id="profileModal">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3>Configurar Mi Viaje & Estancia</h3>
-        <button class="modal-close" id="btnCloseProfileModal">&times;</button>
+  <!-- ========================================================
+       FLOATING / DOCK NAVIGATION BAR
+       ======================================================== -->
+  <nav class="dock-wrapper dock-bottom magnify-enabled" id="fupais-dock" aria-label="Barra de Navegación">
+    <!-- Item 1: Inicio -->
+    <button class="dock-item active" data-tab="inicio" title="Inicio" aria-label="Inicio">
+      <div class="dock-item-icon-box">
+        <svg class="dock-icon" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       </div>
+      <span class="dock-dot"></span>
+      <span class="dock-tooltip">Inicio</span>
+    </button>
 
-      <form id="profileForm">
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" for="selectOrigin">País de Origen</label>
-            <select class="form-select" id="selectOrigin" required></select>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="selectDestination">País de Destino</label>
-            <select class="form-select" id="selectDestination" required></select>
-          </div>
-        </div>
+    <!-- Item 2: Mapa en Tiempo Real -->
+    <button class="dock-item" data-tab="mapa" title="Mapa y Seguimiento" aria-label="Mapa">
+      <div class="dock-item-icon-box">
+        <svg class="dock-icon" viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+      </div>
+      <span class="dock-badge pulse" title="Rastreo GPS en vivo">GPS</span>
+      <span class="dock-dot"></span>
+      <span class="dock-tooltip">Mapa en Tiempo Real</span>
+    </button>
 
-        <div class="form-group">
-          <label class="form-label" for="selectStayPreset">Tipo de Estancia / Visado</label>
-          <select class="form-select" id="selectStayPreset" required></select>
-        </div>
+    <!-- Item 3: Búsqueda (Spotlight Search) -->
+    <button class="dock-item" data-action="busqueda" title="Búsqueda Universal" aria-label="Buscar">
+      <div class="dock-item-icon-box">
+        <svg class="dock-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
+      <span class="dock-tooltip">Búsqueda</span>
+    </button>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" for="inputArrivalDate">Fecha de Entrada al País</label>
-            <input type="date" class="form-input" id="inputArrivalDate" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="inputAllowedDays">Días Autorizados</label>
-            <input type="number" class="form-input" id="inputAllowedDays" min="1" max="1825" value="365" required>
-          </div>
-        </div>
+    <!-- Item 4: Archivos Subidos / Bóveda -->
+    <button class="dock-item" data-tab="archivos" title="Archivos & Visas" aria-label="Archivos">
+      <div class="dock-item-icon-box">
+        <svg class="dock-icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      </div>
+      <span class="dock-badge" id="dock-files-badge">4</span>
+      <span class="dock-dot"></span>
+      <span class="dock-tooltip">Archivos & Documentos</span>
+    </button>
 
-        <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.2); padding: 0.75rem; border-radius: var(--radius-sm); font-size: 0.8rem; color: #cbd5e1; margin-bottom: 1.25rem;">
-          💡 <strong>Tip Migratorio:</strong> La prórroga estudiantil suele poder solicitarse unos 60 días antes del vencimiento (en España, desde ~60 días antes y hasta el día del vencimiento). Para turistas en zona Schengen/Europa el límite es estricto: 90 días en cualquier periodo de 180.
-        </div>
+    <!-- Item 5: Perfil del Viajero -->
+    <button class="dock-item" data-tab="perfil" title="Mi Perfil" aria-label="Perfil">
+      <div class="dock-item-icon-box">
+        <svg class="dock-icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <span class="dock-dot"></span>
+      <span class="dock-tooltip">Perfil del Viajero</span>
+    </button>
 
-        <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
-          <button type="button" class="btn btn-glass" id="btnCancelProfile">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Guardar y Calcular</button>
-        </div>
-      </form>
+    <!-- Item 6: Configuración -->
+    <button class="dock-item" data-tab="configuracion" title="Configuración" aria-label="Configuración">
+      <div class="dock-item-icon-box">
+        <svg class="dock-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </div>
+      <span class="dock-dot"></span>
+      <span class="dock-tooltip">Configuración</span>
+    </button>
+
+    <!-- Separator -->
+    <div class="dock-divider"></div>
+
+    <!-- Item 7: Menú Hamburguesa / Control Center -->
+    <button class="dock-item" data-action="drawer" title="Menú Rápido" aria-label="Menú Hamburguesa">
+      <div class="dock-item-icon-box">
+        <svg class="dock-icon" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </div>
+      <span class="dock-tooltip">Menú</span>
+    </button>
+
+    <!-- Item 8: Ocultar / Minimizar Dock -->
+    <button class="dock-item" data-action="hide-dock" title="Ocultar" aria-label="Ocultar">
+      <div class="dock-item-icon-box">
+        <svg class="dock-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <span class="dock-tooltip">Ocultar</span>
+    </button>
+  </nav>
+
+  <!-- ========================================================
+       SEÑAL FLOTANTE / PEEK HANDLE ("Home Bar" señal para mostrar)
+       Permite reabrir el Dock cuando está oculto o cerrado
+       ======================================================== -->
+  <div class="dock-peek-handle handle-bottom" id="dock-peek-trigger" title="Clic para mostrar la Barra">
+    <span class="handle-live-dot"></span>
+    <span class="handle-pill-line"></span>
+    <span class="handle-text-tip">Abrir</span>
+  </div>
+
+  <!-- ========================================================
+       SPOTLIGHT SEARCH MODAL (macOS Cmd+K / iOS Spotlight)
+       ======================================================== -->
+  <div class="spotlight-overlay" id="spotlight-overlay">
+    <div class="spotlight-box">
+      <div class="spotlight-search-header">
+        <svg class="icon" viewBox="0 0 24 24" style="color: var(--color-mid-gray);"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="spotlight-input" class="spotlight-input" placeholder="Buscar países, trámites, archivos, fechas..." autocomplete="off" />
+        <span class="badge badge-outline" style="font-size: 11px;">ESC para salir</span>
+      </div>
+      <div class="spotlight-results" id="spotlight-results">
+        <!-- Rendered by dock.js -->
+      </div>
+      <div class="spotlight-footer">
+        <div>Navegar: <kbd>↑</kbd> <kbd>↓</kbd> | Abrir: <kbd>↵ Enter</kbd></div>
+        <div>FuPais Spotlight Search</div>
+      </div>
     </div>
   </div>
 
-  <!-- MODAL 2: Crear / Editar Trámite o Evento -->
-  <div class="modal-overlay" id="taskModal">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 id="taskModalTitle">Nuevo Trámite o Hito Migratorio</h3>
-        <button class="modal-close" id="btnCloseTaskModal">&times;</button>
+  <!-- ========================================================
+       SLIDE-OVER DRAWER (CONTROL CENTER / MENÚ HAMBURGUESA)
+       ======================================================== -->
+  <div class="drawer-overlay" id="drawer-overlay">
+    <aside class="drawer-panel">
+      <div class="drawer-header">
+        <div>
+          <h3 class="text-subheading">Centro de Control</h3>
+          <p class="text-caption" style="text-transform: none;">Accesos rápidos y emergencias</p>
+        </div>
+        <button class="btn btn-outline btn-sm" data-close-drawer>✕</button>
       </div>
 
-      <form id="taskForm">
-        <input type="hidden" id="inputTaskId">
+      <!-- Quick Switch Country -->
+      <div class="drawer-section-title">País de Destino Activo</div>
+      <div style="font-size: 13px; font-weight: 600; margin-bottom: 8px;">🇨🇴 Colombia — Intercambio PIP-2</div>
 
-        <div class="form-group">
-          <label class="form-label" for="inputTaskTitle">Título del Trámite / Evento</label>
-          <input type="text" class="form-input" id="inputTaskTitle" placeholder="Ej: Cita Prórroga de Estancia, Toma de Huellas TIE" required>
+      <!-- Quick Emergency Contacts -->
+      <div class="drawer-section-title">Contactos de Asistencia & Emergencia</div>
+      <a href="tel:123" class="quick-action-tile">
+        <span style="font-size: 18px;">🚨</span>
+        <div>
+          <div>Línea de Emergencias 123 (Colombia)</div>
+          <div style="font-size: 11px; color: var(--color-mid-gray);">Policía Nacional & Cruz Roja</div>
         </div>
+      </a>
+      <a href="https://www.migracioncolombia.gov.co" target="_blank" rel="noopener noreferrer" class="quick-action-tile">
+        <span style="font-size: 18px;">🏛️</span>
+        <div>
+          <div>Portal Migración Colombia</div>
+          <div style="font-size: 11px; color: var(--color-mid-gray);">Trámites y prórrogas oficiales</div>
+        </div>
+      </a>
+      <a href="tel:+576017460900" class="quick-action-tile">
+        <span style="font-size: 18px;">🇵🇪</span>
+        <div>
+          <div>Consulado General de Perú en Bogotá</div>
+          <div style="font-size: 11px; color: var(--color-mid-gray);">+57 (601) 746-0900</div>
+        </div>
+      </a>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label" for="inputTaskDate">Fecha Límite / Fecha Cita</label>
-            <input type="date" class="form-input" id="inputTaskDate" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="selectTaskPriority">Prioridad / Urgencia</label>
-            <select class="form-select" id="selectTaskPriority" required>
-              <option value="urgent">🚨 Urgente</option>
-              <option value="critical">🔴 Crítica</option>
-              <option value="high">⚠️ Alta (Atención)</option>
-              <option value="medium" selected>🔹 Normal / Trámite Local</option>
+      <!-- Quick Actions -->
+      <div class="drawer-section-title">Herramientas Rápidas</div>
+      <button class="quick-action-tile" style="width: 100%; text-align: left;" onclick="window.fuPaisDock.switchTab('mapa'); window.fuPaisDock.closeDrawer();">
+        <span style="font-size: 18px;">🛰️</span>
+        <div>
+          <div>Radar Satelital en Tiempo Real</div>
+          <div style="font-size: 11px; color: var(--color-mid-gray);">Ver coordenadas y tracking</div>
+        </div>
+      </button>
+      <button class="quick-action-tile" style="width: 100%; text-align: left;" onclick="window.fuPaisDock.openSpotlight(); window.fuPaisDock.closeDrawer();">
+        <span style="font-size: 18px;">🔍</span>
+        <div>
+          <div>Buscador Global (Spotlight)</div>
+          <div style="font-size: 11px; color: var(--color-mid-gray);">Atajo Cmd + K</div>
+        </div>
+      </button>
+
+      <div style="margin-top: auto; padding-top: 16px; border-top: 1px solid var(--color-hairline); font-size: 11px; color: var(--color-mid-gray);">
+        NomadStay / FuPais • Sistema Migratorio Inteligente
+      </div>
+    </aside>
+  </div>
+
+  <!-- MODAL: CONFIGURAR VIAJE Y FECHAS -->
+  <div class="modal-overlay" id="config-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="text-heading-sm" style="font-size: 20px;">Ajustar Fechas y Perfil de Viaje</h3>
+        <button class="btn btn-outline btn-sm" data-close-modal>✕</button>
+      </div>
+
+      <form id="form-config-trip">
+        <div style="display: flex; flex-direction: column; gap: var(--spacing-16);">
+          <div class="input-group">
+            <label class="input-label" for="config-preset-select">Normativa de País de Destino:</label>
+            <select id="config-preset-select" class="select">
+              <option value="colombia_intercambio">🇨🇴 Colombia — Estudiante Intercambio (PIP-2 / PTP)</option>
+              <option value="colombia_turista">🇨🇴 Colombia — Turista (PIP-5 / PTP)</option>
+              <option value="espana_estudiante">🇪🇸 España — Estancia por Estudios (TIE / Prórroga)</option>
+              <option value="schengen_turista">🇪🇺 Espacio Schengen — Turista (90/180 días)</option>
+              <option value="mexico_canje">🇲🇽 México — Canje Residencia INM (30 días)</option>
             </select>
           </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-12);">
+            <div class="input-group">
+              <label class="input-label" for="config-origin">País de Origen:</label>
+              <input type="text" id="config-origin" class="input" required />
+            </div>
+            <div class="input-group">
+              <label class="input-label" for="config-destination">País de Destino:</label>
+              <input type="text" id="config-destination" class="input" required />
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label class="input-label" for="config-visa">Tipo de Estancia / Visado:</label>
+            <input type="text" id="config-visa" class="input" required />
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-12);">
+            <div class="input-group">
+              <label class="input-label" for="config-entry-date">Fecha de Salida / Ingreso:</label>
+              <input type="date" id="config-entry-date" class="input" required />
+            </div>
+            <div class="input-group">
+              <label class="input-label" for="config-expiry-date">Fecha Límite / Vencimiento Permiso:</label>
+              <input type="date" id="config-expiry-date" class="input" required />
+            </div>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label class="form-label" for="inputTaskCategory">Categoría</label>
-          <input type="text" class="form-input" id="inputTaskCategory" placeholder="Ej: Renovación Migratoria, Consulado, Empadronamiento, Vuelo">
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="inputTaskDesc">Detalles / Requisitos o Documentos</label>
-          <textarea class="form-textarea" id="inputTaskDesc" placeholder="Documentos a llevar: Pasaporte vigente, matrícula pagada, comprobante de seguro médico, tasa 790..."></textarea>
-        </div>
-
-        <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
-          <button type="button" class="btn btn-glass" id="btnCancelTask">Cancelar</button>
-          <button type="submit" class="btn btn-primary" id="btnSaveTask">Guardar Trámite</button>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close-modal>Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar y Recalcular</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- MODAL 3: Inspeccionar Día de Calendario -->
-  <div class="modal-overlay" id="dayDetailModal">
+  <!-- MODAL: DETALLE DEL DÍA INSPECCIONADO -->
+  <div class="modal-overlay" id="day-modal">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 id="dayDetailModalTitle">Día Seleccionado</h3>
-        <button class="modal-close" id="btnCloseDayDetailModal">&times;</button>
-      </div>
-      <p id="dayDetailModalSubtitle" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;"></p>
-      
-      <div id="dayDetailEventsContainer" class="day-modal-events">
-        <!-- Eventos del día -->
+        <div style="display: flex; flex-direction: column;">
+          <span class="text-caption">Inspección de Fecha</span>
+          <h3 class="text-heading-sm" id="day-modal-title" style="font-size: 20px;">Detalle del Día</h3>
+        </div>
+        <button class="btn btn-outline btn-sm" data-close-modal>✕</button>
       </div>
 
-      <div style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
-        <button class="btn btn-primary btn-sm" id="btnDayDetailAddEvent">
-          <span>➕</span> Agregar Evento en este Día
-        </button>
-        <button class="btn btn-glass btn-sm" id="btnCloseDayDetailBtn">Cerrar</button>
+      <div id="day-modal-body">
+        <!-- Injected dynamically by app.js -->
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-outline" data-close-modal>Cerrar</button>
       </div>
     </div>
   </div>
 
-  <!-- Scripts -->
+  <!-- Application Logic (ES Modules) -->
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

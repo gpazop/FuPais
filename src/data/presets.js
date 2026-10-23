@@ -256,6 +256,16 @@ const STAY_TYPE_TO_RULE = {
 };
 
 /**
+ * Devuelve la clave de regla dentro de COUNTRY_RULES para un tipo de estancia
+ * del preset (ej. 'tourist_90' → 'tourist'). Exportado para que otros módulos
+ * (ventanas de trámite, registro derivado de presets) puedan traducir
+ * stayType → ruleKey sin duplicar el mapeo.
+ */
+export function getStayTypeRuleKey(stayType) {
+  return STAY_TYPE_TO_RULE[stayType] || stayType;
+}
+
+/**
  * Devuelve la regla verificada para (país, tipo de estancia) o `null` si no
  * hay datos verificados para esa combinación. La UI usa `null` para enseñar
  * la nota genérica "datos no verificados" en lugar de inventar cifras.
@@ -263,7 +273,7 @@ const STAY_TYPE_TO_RULE = {
 export function getCountryRule(countryCode, stayType) {
   const byCountry = COUNTRY_RULES[countryCode];
   if (!byCountry) return null;
-  const ruleKey = STAY_TYPE_TO_RULE[stayType] || stayType;
+  const ruleKey = getStayTypeRuleKey(stayType);
   if (!byCountry[ruleKey]) return null;
   return { ...byCountry[ruleKey], country: byCountry.country, flag: byCountry.flag };
 }
