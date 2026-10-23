@@ -31,6 +31,10 @@ import { getCountryRule, getStayTypeRuleKey, getPresetTasks } from './presets.js
  * que el turista, con matemática legalmente idéntica (90 días iniciales,
  * prorrogables por otros 90 hasta un tope de 180/año). Por eso usa la regla
  * CO.tourist: no es un atajo, es la regla realmente aplicable.
+ *
+ * Los TRÁMITES, en cambio, sí son específicos del intercambio (ven la regla
+ * del mismo PIP pero con ventanas de radicación propias): PRESET_TASK_TYPES
+ * los deriva a COUNTRY_TASKS.CO.intercambio en lugar del set de turismo.
  */
 export const PRESET_STAY_TYPES = Object.freeze({
   colombia_intercambio: 'tourist_90',
@@ -39,6 +43,14 @@ export const PRESET_STAY_TYPES = Object.freeze({
   schengen_turista: 'tourist_90',
   espana_estudiante: 'student',
   mexico_canje: 'student'
+});
+
+/**
+ * Sobrescritura opcional del grupo de trámites por presetId. Lo que no esté
+ * aquí resuelve por stayType (via STAY_TYPE_TO_TASK_KEYS en presets.js).
+ */
+const PRESET_TASK_TYPES = Object.freeze({
+  colombia_intercambio: 'intercambio'
 });
 
 /** Un solo trámite por preset es la acción de prórroga (extiende los días). */
@@ -53,7 +65,10 @@ export const MIGRATION_PRESETS = Object.fromEntries(
 
       const { countryCode } = presentation;
       const rule = getCountryRule(countryCode, stayType);
-      const tasks = getPresetTasks(countryCode, stayType);
+      // La regla legal se resuelve por stayType; el grupo de trámites puede
+      // sobrescribirse por presetId (intercambio comparte regla, no trámites).
+      const taskType = PRESET_TASK_TYPES[presetId] ?? stayType;
+      const tasks = getPresetTasks(countryCode, taskType);
       // El filtro de publicación: sin regla legal verificada y trámites
       // verificados, el preset se descarta aunque esté en la presentación.
       if (!rule || !tasks) return null;
@@ -84,7 +99,11 @@ export const MIGRATION_PRESETS = Object.fromEntries(
             verifiedAt: rule.verifiedAt
           },
           procedures: tasks.map((task, index) => {
-            const isExtensionAction = EXTENSION_TASK_RE.test(task.title);
+            // El flag explícito en los datos gana sobre el heurístico por
+            // título: "Apertura de Ventana de Prórroga…" contiene "prórroga"
+            // pero NO es una acción de prórroga.
+            const isExtensionAction =
+              task.isExtensionAction ?? EXTENSION_TASK_RE.test(task.title);
             return {
               // Los ids NO deben cambiar: el estado persistente guarda el
               // progreso con estos ids (fupais_state_v2.completedProcedures).
