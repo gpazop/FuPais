@@ -1,5 +1,5 @@
 /**
- * NomadStay — mapa único de referencias a elementos del DOM.
+ * FuPais — mapa único de referencias a elementos del DOM.
  * Extraído de app.js (Fase 1b) sin cambios de comportamiento.
  */
 

@@ -1,5 +1,5 @@
 /**
- * NomadStay — capa de render: actualiza el DOM a partir de STATE.
+ * FuPais — capa de render: actualiza el DOM a partir de STATE.
  * Extraído de app.js (Fase 1b) sin cambios de comportamiento.
  */
 
