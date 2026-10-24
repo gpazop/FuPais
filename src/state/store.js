@@ -1,5 +1,5 @@
 /**
- * NomadStay — estado de la aplicación y persistencia en localStorage.
+ * FuPais — estado de la aplicación y persistencia en localStorage.
  * Extraído de app.js (Fase 1b). No importa el DOM (utilizable en tests).
  */
 

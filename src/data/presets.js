@@ -256,6 +256,16 @@ const STAY_TYPE_TO_RULE = {
 };
 
 /**
+ * Devuelve la clave de regla dentro de COUNTRY_RULES para un tipo de estancia
+ * del preset (ej. 'tourist_90' → 'tourist'). Exportado para que otros módulos
+ * (ventanas de trámite, registro derivado de presets) puedan traducir
+ * stayType → ruleKey sin duplicar el mapeo.
+ */
+export function getStayTypeRuleKey(stayType) {
+  return STAY_TYPE_TO_RULE[stayType] || stayType;
+}
+
+/**
  * Devuelve la regla verificada para (país, tipo de estancia) o `null` si no
  * hay datos verificados para esa combinación. La UI usa `null` para enseñar
  * la nota genérica "datos no verificados" en lugar de inventar cifras.
@@ -263,7 +273,7 @@ const STAY_TYPE_TO_RULE = {
 export function getCountryRule(countryCode, stayType) {
   const byCountry = COUNTRY_RULES[countryCode];
   if (!byCountry) return null;
-  const ruleKey = STAY_TYPE_TO_RULE[stayType] || stayType;
+  const ruleKey = getStayTypeRuleKey(stayType);
   if (!byCountry[ruleKey]) return null;
   return { ...byCountry[ruleKey], country: byCountry.country, flag: byCountry.flag };
 }
@@ -300,6 +310,64 @@ export const COUNTRY_TASKS = {
         category: 'Límite Legal',
         priority: 'critical',
         description: 'Con la Resolución 5477, la estancia máxima como turista en Colombia es de 90 días. Salir con el permiso vencido implica multa y posible sanción migratoria.'
+      }
+    ],
+    /**
+     * Estudiante de intercambio (PIP-2). Set portado VERBATIM de la
+     * referencia congelada DISEÑO-PRUEBA-1 (js/data/migrationData.js,
+     * preset colombia_intercambio). La regla legal sigue siendo la de
+     * CO.tourist (mismo PIP); solo cambian los trámites recomendados.
+     *
+     * dayOffsets derivados de la semántica de la referencia:
+     *  - carta            → daysFromEntry 5  → dayOffset 5
+     *  - apertura ventana → 15 días antes    → dayOffset (90 − 15) = 75
+     *  - límite seguro    → 5 días antes     → dayOffset (90 − 5)  = 85
+     *  - aprobación       → en el vencimiento→ dayOffset 90
+     *
+     * COLA LEGAL — VERIFICADO 2026-10-23 (no reescribir aquí): los claims
+     * "+90 días adicionales" y "máximo legal 180 días por año" provienen de
+     * la referencia y fueron confirmados contra la Resolución 5477 de 2022
+     * (normograma Cancillería: "permanencia autorizada... 90 días,
+     * prorrogable por otros 90 días calendario, continuos o discontinuos";
+     * tope de 180 días por año civil reiterado por fuentes secundarias).
+     * Aplican al PIP de visitante/turismo, base reglamentaria de este set.
+     * CAVEAT ABIERTO: la extensión idéntica para PIP-2 (intercambiista) no
+     * se pudo confirmar documento por documento (normograma 403 al fetch;
+     * existe una Resolución 599 de 2026 posterior, alcance desconocido);
+     * los trámites de la referencia se portaron verbatim igualmente.
+     */
+    intercambio: [
+      {
+        title: 'Carta de Aceptación / Convenio de Intercambio',
+        dayOffset: 5,
+        category: 'Universidad',
+        priority: 'high',
+        description: 'Documento de la universidad colombiana (ej. U. Santo Tomás) que certifica el período académico activo.'
+      },
+      {
+        title: 'Apertura de Ventana de Prórroga PTP (15 días antes)',
+        dayOffset: 75,
+        category: 'Migraciones',
+        priority: 'urgent',
+        // Flag explícito: el título contiene "Prórroga" pero la tarea abre la
+        // ventana de radicación, no es una acción de prórroga.
+        isExtensionAction: false,
+        description: 'Día a partir del cual el sistema FUT de Migración Colombia permite radicar la prórroga sin rechazo por anticipación.'
+      },
+      {
+        title: 'Límite Seguro de Radicación (5 días antes)',
+        dayOffset: 85,
+        category: 'Migraciones',
+        priority: 'urgent',
+        description: 'Fecha máxima recomendada para radicar y pagar el trámite online para dar margen a los 3-4 días de estudio de la entidad.'
+      },
+      {
+        title: 'Aprobación de Prórroga PTP (+90 Días Adicionales)',
+        dayOffset: 90,
+        category: 'Migraciones',
+        priority: 'critical',
+        isExtensionAction: true,
+        description: 'Al ser aprobada por Migración Colombia, otorga hasta 90 días más (máximo legal 180 días por año).'
       }
     ]
   },

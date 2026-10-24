@@ -1,347 +1,661 @@
-/**
- * NomadStay — capa de aplicación: init, bindings, modales de perfil/tarea
- * y exportación a iCal. Refactor Fase 1b: el estado vive en src/state/store.js
- * y el render en src/ui/render.js.
- */
+// ========================================================
+// FUPAIS — MAIN APPLICATION CONTROLLER
+// Archetype: Clinical Blueprint on Frosted Paper (shadcn/ui)
+// ========================================================
 
-import { STAY_PRESETS, COUNTRIES_LIST, getPresetTasks } from '../data/presets.js';
-import { parseDate, formatDateISO, formatDateSpanish, getDaysDifference, addDaysToDate, getLastAllowedDate } from '../domain/dates.js';
-import { escapeHtml, escapeIcsText, priorityLabel } from '../domain/format.js';
-import { STATE, STORAGE_KEY_PROFILE, STORAGE_KEY_TASKS, saveProfile, saveTasks } from '../state/store.js';
-import { elements } from './elements.js';
-import { updateUI, openDayDetailModal, closeDayDetailModal } from './render.js';
+import { MIGRATION_PRESETS } from "../data/migrationPresets.js";
+import { buildDashboard } from "../domain/dashboard.js";
+import {
+  formatDateISO,
+  formatDatePretty,
+  parseDate,
+  addDays,
+  differenceInDays
+} from "../domain/dates.js";
+import { FuPaisCalendar } from "../components/calendar.js";
+import { FuPaisDock } from "../components/dock.js";
+import { storage } from "../services/storage.js";
 
-export { init };
+// STORAGE KEY
+const STORAGE_KEY = "fupais_state_v2";
 
-// Initialization
-function init() {
-  loadState();
-  populateDropdowns();
-  bindEvents();
-  updateUI();
-}
+const defaultState = () => {
+  // Caso real del usuario: Estudiante de intercambio en Colombia (ej. Universidad Santo Tomás)
+  // Lleva ~78 días de estancia de sus 90 días iniciales.
+  // Faltan 12 días para el vencimiento (está exactamente en la ventana de 15 a 5 días de anticipación).
+  const today = new Date();
+  const entryDate = addDays(today, -78);
 
-function loadState() {
-  const savedProfile = localStorage.getItem(STORAGE_KEY_PROFILE);
-  const savedTasks = localStorage.getItem(STORAGE_KEY_TASKS);
+  return {
+    presetId: "colombia_intercambio",
+    entryDateStr: formatDateISO(entryDate),
+    allowedDays: 90, // °90 días iniciales; el vencimiento SIEMPRE se deriva (nunca se guarda)
+    originCountry: "Perú",
+    destinationCountry: "Colombia",
+    visaType: "Estudiante de Intercambio (PIP-2)",
+    completedProcedures: {
+      // IDs derivados del registro: `${presetId}-p${index + 1}`
+      "colombia_intercambio-p1": true
+    },
+    customEvents: [
+      {
+        id: "ev-1",
+        title: "Entrega de documentos a Oficina de Relaciones Internacionales",
+        date: formatDateISO(addDays(today, 2)),
+        type: "academico"
+      }
+    ]
+  };
+};
 
-  if (savedProfile) {
-    STATE.profile = JSON.parse(savedProfile);
-    // Sanidad: datos viejos o corruptos no deben romper el conteo
-    const savedDays = Number(STATE.profile.allowedDays);
-    if (!Number.isFinite(savedDays) || savedDays < 1) {
-      STATE.profile.allowedDays = 365;
-    }
-  } else {
-    // Default initial profile for student arriving ~90 days ago
-    const today = new Date();
-    const defaultArrival = new Date(today);
-    defaultArrival.setDate(today.getDate() - 95); // 95 days ago
+class FuPaisApp {
+  constructor(state) {
+    this.state = state;
+    this.calendar = null;
+    this.metrics = null;
 
-    STATE.profile = {
-      origin: 'CO',
-      destination: 'ES',
-      stayType: 'student',
-      arrivalDate: formatDateISO(defaultArrival),
-      allowedDays: 365
-    };
-    saveProfile();
+    this.initElements();
+    this.syncPresetOptions();
+    this.initCalendar();
+    this.bindEvents();
+    this.update();
   }
 
-  if (savedTasks) {
-    STATE.tasks = JSON.parse(savedTasks);
-  } else {
-    // Generate default tasks based on preset
-    loadPresetTasks(STATE.profile.destination, STATE.profile.stayType, false);
-  }
-}
+  /**
+   * Boot: hydrate persisted state, then build the UI in the same order as
+   * before. Only the persistence source changes, not the rendering.
+   */
+  static async create() {
+    const stored = await storage.get(STORAGE_KEY);
+    const app = new FuPaisApp(stored ? FuPaisApp.normalizeState(stored) : defaultState());
 
+    app.dock = await FuPaisDock.create(app);
+    window.fuPaisDock = app.dock;
 
-function populateDropdowns() {
-  // Countries
-  elements.selectOrigin.innerHTML = '';
-  elements.selectDestination.innerHTML = '';
-
-  COUNTRIES_LIST.forEach(country => {
-    const optOrig = document.createElement('option');
-    optOrig.value = country.code;
-    optOrig.textContent = `${country.flag} ${country.name}`;
-    elements.selectOrigin.appendChild(optOrig);
-
-    const optDest = document.createElement('option');
-    optDest.value = country.code;
-    optDest.textContent = `${country.flag} ${country.name}`;
-    elements.selectDestination.appendChild(optDest);
-  });
-
-  // Presets
-  elements.selectStayPreset.innerHTML = '';
-  Object.keys(STAY_PRESETS).forEach(key => {
-    const preset = STAY_PRESETS[key];
-    const opt = document.createElement('option');
-    opt.value = key;
-    opt.textContent = `${preset.icon} ${preset.name}`;
-    elements.selectStayPreset.appendChild(opt);
-  });
-}
-
-/**
- * Carga los trámites recomendados según PAÍS DE DESTINO + TIPO DE ESTANCIA.
- * Si no hay datos verificados para la combinación (getPresetTasks → null),
- * cae al preset genérico de STAY_PRESETS (comportamiento previo).
- */
-function loadPresetTasks(countryCode, stayType, shouldConfirm = true) {
-  if (shouldConfirm) {
-    const confirmed = confirm('Cambiaste de tipo de estancia o país de destino. ¿Deseas cargar los trámites recomendados para el nuevo perfil?');
-    if (!confirmed) return;
+    return app;
   }
 
-  const presetTasks = getPresetTasks(countryCode, stayType)
-    || (STAY_PRESETS[stayType] || STAY_PRESETS.student).tasks;
-  const arrival = STATE.profile.arrivalDate || formatDateISO(new Date());
-
-  const newTasks = presetTasks.map((item, index) => {
-    // dayOffset es 1-based (día de estancia): el día de llegada es el Día 1,
-    // por lo que el offset real desde la fecha de llegada es dayOffset - 1.
-    const taskDate = addDaysToDate(arrival, item.dayOffset - 1);
-    return {
-      id: 'task_' + Date.now() + '_' + index,
-      title: item.title,
-      date: taskDate,
-      category: item.category,
-      priority: item.priority,
-      description: item.description,
-      completed: false
-    };
-  });
-
-  STATE.tasks = newTasks;
-  saveTasks();
-  updateUI();
-}
-
-
-// Modal Handlers
-function openProfileModal() {
-  elements.selectOrigin.value = STATE.profile.origin;
-  elements.selectDestination.value = STATE.profile.destination;
-  elements.selectStayPreset.value = STATE.profile.stayType;
-  elements.inputArrivalDate.value = STATE.profile.arrivalDate;
-  elements.inputAllowedDays.value = STATE.profile.allowedDays;
-
-  elements.profileModal.classList.add('active');
-}
-
-function closeProfileModal() {
-  elements.profileModal.classList.remove('active');
-}
-
-function openNewTaskModal(defaultDate = null) {
-  elements.inputTaskId.value = '';
-  elements.taskForm.reset();
-  elements.taskModalTitle.textContent = 'Nuevo Trámite o Hito Migratorio';
-
-  if (defaultDate) {
-    elements.inputTaskDate.value = defaultDate;
-  } else {
-    // Default to in 15 days
-    elements.inputTaskDate.value = formatDateISO(new Date(Date.now() + 15 * 86400000));
+  /**
+   * Legacy hydrate: versions of `fupais_state_v2` stored `expiryDateStr` directly.
+   * The new shape stores only `{ entryDateStr, allowedDays }` — expiry is always
+   * *derived*. Convert the old field on read and drop it from memory.
+   */
+  static normalizeState(raw) {
+    const state = { ...raw };
+    if (state.expiryDateStr && state.entryDateStr && !state.allowedDays) {
+      const entry = parseDate(state.entryDateStr);
+      const expiry = parseDate(state.expiryDateStr);
+      // Conteo inclusivo: día de llegada = Día 1.
+      state.allowedDays = Math.max(1, differenceInDays(expiry, entry) + 1);
+      delete state.expiryDateStr;
+    }
+    return state;
   }
 
-  elements.taskModal.classList.add('active');
-}
-
-function closeTaskModal() {
-  elements.taskModal.classList.remove('active');
-}
-
-
-// Export to iCal (.ics) format
-function exportToICal() {
-  if (STATE.tasks.length === 0) {
-    alert('No hay eventos o trámites para exportar.');
-    return;
+  async saveState() {
+    await storage.set(STORAGE_KEY, this.state);
   }
 
-  let icsContent = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//NomadStay//MigracionTracker//ES',
-    'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
-    'X-WR-CALNAME:NomadStay Trámites y Permanencia'
-  ];
+  initElements() {
+    // Stat elements
+    this.elDaysAbroad = document.getElementById("stat-days-abroad");
+    this.elTotalAllowed = document.getElementById("stat-total-allowed");
+    this.elDaysRemaining = document.getElementById("stat-days-remaining");
+    this.elExpiryDateText = document.getElementById("stat-expiry-text");
+    this.elProgressBar = document.getElementById("stay-progress-fill");
+    this.elPercentText = document.getElementById("stay-percent-text");
+    this.elAlertContainer = document.getElementById("smart-alert-container");
 
-  // Add Limit Date event
-  const limitDateStr = getLastAllowedDate(STATE.profile.arrivalDate, STATE.profile.allowedDays);
-  const limitCleanDate = limitDateStr.replace(/-/g, '');
-  icsContent.push(
-    'BEGIN:VEVENT',
-    `UID:limit_${Date.now()}@nomadstay.app`,
-    `DTSTAMP:${formatDateISO(new Date()).replace(/-/g, '')}T120000Z`,
-    `DTSTART;VALUE=DATE:${limitCleanDate}`,
-    `SUMMARY:🚨 Vencimiento de Estancia / Límite Prórroga`,
-    `DESCRIPTION:Fecha límite legal de estancia autorizada fuera de tu país de origen.`,
-    'STATUS:CONFIRMED',
-    'END:VEVENT'
-  );
+    // Header / Country badge
+    this.elStatusBadge = document.getElementById("header-status-badge");
+    this.elCountryTitle = document.getElementById("country-title");
+    this.elCountrySubtitle = document.getElementById("country-subtitle");
+    this.elCountryFlag = document.getElementById("country-flag");
+    this.elPresetSelect = document.getElementById("preset-selector");
+    this.elOfficialPortalLink = document.getElementById("official-portal-link");
 
-  // Add Tasks
-  STATE.tasks.forEach(task => {
-    const cleanDate = task.date.replace(/-/g, '');
-    icsContent.push(
-      'BEGIN:VEVENT',
-      `UID:${task.id}@nomadstay.app`,
-      `DTSTAMP:${formatDateISO(new Date()).replace(/-/g, '')}T120000Z`,
-      `DTSTART;VALUE=DATE:${cleanDate}`,
-      `SUMMARY:[${escapeIcsText(task.category || 'Trámite')}] ${escapeIcsText(task.title)}`,
-      `DESCRIPTION:${escapeIcsText(task.description || '')}`,
-      `STATUS:${task.completed ? 'COMPLETED' : 'CONFIRMED'}`,
-      'END:VEVENT'
-    );
-  });
+    // Procedure list container
+    this.elProcedureList = document.getElementById("procedures-list-container");
 
-  icsContent.push('END:VCALENDAR');
+    // Modals
+    this.configModal = document.getElementById("config-modal");
+    this.dayModal = document.getElementById("day-modal");
+  }
 
-  const blob = new Blob([icsContent.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `NomadStay_Eventos_${formatDateISO(new Date())}.ics`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-
-// Event Bindings
-function bindEvents() {
-  // Navigation Modals
-  elements.btnOpenProfileModal.addEventListener('click', openProfileModal);
-  elements.btnCloseProfileModal.addEventListener('click', closeProfileModal);
-  elements.btnCancelProfile.addEventListener('click', closeProfileModal);
-
-  elements.btnOpenNewTaskModal.addEventListener('click', () => openNewTaskModal());
-  elements.btnCloseTaskModal.addEventListener('click', closeTaskModal);
-  elements.btnCancelTask.addEventListener('click', closeTaskModal);
-
-  elements.btnCloseDayDetailModal.addEventListener('click', closeDayDetailModal);
-  elements.btnCloseDayDetailBtn.addEventListener('click', closeDayDetailModal);
-  elements.btnDayDetailAddEvent.addEventListener('click', () => {
-    const targetDate = STATE.selectedDayForDetail;
-    closeDayDetailModal();
-    openNewTaskModal(targetDate);
-  });
-
-  // Calendar Month Navigation
-  elements.btnCalPrev.addEventListener('click', () => {
-    STATE.currentCalendarDate.setMonth(STATE.currentCalendarDate.getMonth() - 1);
-    renderCalendar();
-  });
-
-  elements.btnCalNext.addEventListener('click', () => {
-    STATE.currentCalendarDate.setMonth(STATE.currentCalendarDate.getMonth() + 1);
-    renderCalendar();
-  });
-
-  elements.btnCalToday.addEventListener('click', () => {
-    STATE.currentCalendarDate = new Date();
-    renderCalendar();
-  });
-
-  // Profile Form Submit
-  elements.profileForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-
-    // Validaciones: fecha de llegada obligatoria y días autorizados >= 1
-    if (!elements.inputArrivalDate.value) {
-      alert('Debes indicar tu fecha de llegada al país de destino.');
-      return;
-    }
-    const parsedAllowedDays = Number(elements.inputAllowedDays.value);
-    if (!Number.isFinite(parsedAllowedDays) || parsedAllowedDays < 1) {
-      alert('Los días autorizados deben ser un número mayor o igual a 1.');
-      return;
-    }
-
-    const oldStayType = STATE.profile.stayType;
-    const oldDestination = STATE.profile.destination;
-    const newStayType = elements.selectStayPreset.value;
-
-    STATE.profile.origin = elements.selectOrigin.value;
-    STATE.profile.destination = elements.selectDestination.value;
-    STATE.profile.stayType = newStayType;
-    STATE.profile.arrivalDate = elements.inputArrivalDate.value;
-    STATE.profile.allowedDays = Math.floor(parsedAllowedDays);
-
-    saveProfile();
-    closeProfileModal();
-
-    // Si cambió el país de destino o el tipo de estancia, ofrecer recargar trámites
-    // (el mensaje unificado vive dentro de loadPresetTasks)
-    if (oldStayType !== newStayType || oldDestination !== STATE.profile.destination) {
-      loadPresetTasks(STATE.profile.destination, newStayType, true);
-    }
-
-    updateUI();
-  });
-
-  // Preset Select Auto-updates default days in modal
-  elements.selectStayPreset.addEventListener('change', (e) => {
-    const preset = STAY_PRESETS[e.target.value];
-    if (preset) {
-      elements.inputAllowedDays.value = preset.defaultDays;
-    }
-  });
-
-  // Task Form Submit
-  elements.taskForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-
-    // Validaciones: título y fecha obligatorios
-    if (!elements.inputTaskTitle.value.trim()) {
-      alert('El trámite necesita un título.');
-      return;
-    }
-    if (!elements.inputTaskDate.value) {
-      alert('Debes indicar la fecha del trámite.');
-      return;
-    }
-
-    const newTask = {
-      id: elements.inputTaskId.value || 'task_' + Date.now(),
-      title: elements.inputTaskTitle.value.trim(),
-      date: elements.inputTaskDate.value,
-      priority: elements.selectTaskPriority.value,
-      category: elements.inputTaskCategory.value.trim() || 'General',
-      description: elements.inputTaskDesc.value.trim(),
-      completed: false
-    };
-
-    STATE.tasks.push(newTask);
-    saveTasks();
-    closeTaskModal();
-    updateUI();
-  });
-
-  // Filter Chips Click
-  elements.filterChips.forEach(chip => {
-    chip.addEventListener('click', () => {
-      elements.filterChips.forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-      STATE.activeFilter = chip.dataset.filter;
-      renderTasks();
+  initCalendar() {
+    const calendarContainer = document.getElementById("calendar-mount-point");
+    this.calendar = new FuPaisCalendar(calendarContainer, (dateStr) => {
+      this.openDayInspector(dateStr);
     });
-  });
+  }
 
-  // Quick reload presets button
-  elements.btnQuickAddPresetTasks.addEventListener('click', () => {
-    loadPresetTasks(STATE.profile.destination, STATE.profile.stayType, true);
-  });
+  getPreset() {
+    return MIGRATION_PRESETS[this.state.presetId] || MIGRATION_PRESETS.colombia_intercambio;
+  }
 
-  // Export to iCal
-  elements.btnExportCalendar.addEventListener('click', exportToICal);
+  recalculate() {
+    const preset = this.getPreset();
+
+    // Pre-sync `done` from persisted checkboxes; buildDashboard derives everything
+    // else (targetDate, daysUntilProc, isPast, urgent) from the pure domain layer.
+    const tasks = preset.procedures.map(proc => ({
+      ...proc,
+      done: this.state.completedProcedures[proc.id] === true
+    }));
+
+    this.metrics = buildDashboard({
+      profile: {
+        entryDateStr: this.state.entryDateStr,
+        allowedDays: this.state.allowedDays,
+        countryCode: preset.countryCode,
+        ruleKey: preset.ruleKey
+      },
+      tasks,
+      today: new Date()
+    });
+  }
+
+  update() {
+    this.recalculate();
+    this.renderHeaderAndBanner();
+    this.renderMetrics();
+    this.renderProcedures();
+    this.calendar.setData(this.metrics, this.state.customEvents);
+    if (this.dock) {
+      this.dock.renderMapTelemetry();
+    }
+    this.saveState();
+  }
+
+  showNotification(msg) {
+    const existing = document.getElementById("fupais-toast");
+    if (existing) existing.remove();
+
+    const toast = document.createElement("div");
+    toast.id = "fupais-toast";
+    toast.className = "card card-sm";
+    toast.style.cssText = `
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 2000;
+      background: var(--color-ink);
+      color: #fafafa;
+      box-shadow: var(--shadow-floating);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      padding: 12px 18px;
+      animation: modalIn 0.25s ease;
+    `;
+    toast.innerHTML = `<span>✓</span><span>${msg}</span>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+  }
+
+  renderHeaderAndBanner() {
+    const preset = this.getPreset();
+
+    if (this.elCountryFlag) this.elCountryFlag.textContent = preset.countryCode || "CO";
+    if (this.elCountryTitle) this.elCountryTitle.textContent = `${this.state.destinationCountry} • ${this.state.visaType}`;
+    if (this.elCountrySubtitle) {
+      this.elCountrySubtitle.textContent = `País de origen: ${this.state.originCountry} | Ingreso: ${formatDatePretty(this.metrics.entryDate)} | Vencimiento: ${formatDatePretty(this.metrics.expiryDate)}`;
+    }
+
+    if (this.elOfficialPortalLink && preset.officialPortalUrl) {
+      this.elOfficialPortalLink.href = preset.officialPortalUrl;
+      this.elOfficialPortalLink.title = `Ir al portal oficial de ${preset.officialEntityName}`;
+      this.elOfficialPortalLink.style.display = "inline-flex";
+    }
+
+    if (this.elStatusBadge) {
+      this.elStatusBadge.className = `badge ${this.metrics.statusBadge.type}`;
+      this.elStatusBadge.innerHTML = `<span class="badge-dot"></span> ${this.metrics.statusBadge.label}`;
+    }
+
+    // Smart Alert Box con datos migratorios precisos
+    if (this.elAlertContainer) {
+      let alertContent = "";
+
+      if (this.metrics.isExpired) {
+        alertContent = `
+          <div class="alert-box">
+            <svg class="icon icon-lg alert-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <div class="alert-content">
+              <div class="alert-title text-ember">
+                Estancia Vencida — Plazo Legal Excedido
+              </div>
+              <div class="alert-desc">
+                Tu período autorizado expiró hace ${Math.abs(this.metrics.daysRemaining)} días. De acuerdo con ${preset.officialEntityName}, deberás solicitar un Salvoconducto (SC-2) por permanencia irregular para salir del país o regularizarte.
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (this.metrics.isInsideRiskWindow) {
+        // En los últimos 5 días antes de vencer
+        alertContent = `
+          <div class="alert-box" style="border-left-color: var(--color-ember);">
+            <svg class="icon icon-lg alert-icon text-ember" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <div class="alert-content">
+              <div class="alert-title text-ember">
+                <span>¡Atención Urgente! Quedan solo ${this.metrics.daysRemaining} días para vencimiento</span>
+                <span class="badge badge-ember">Demora de respuesta: 3-5 días hábiles</span>
+              </div>
+              <div class="alert-desc">
+                Has ingresado en la zona de riesgo por tiempos de respuesta. ${preset.officialEntityName} tarda entre 3 y 5 días en procesar y validar el pago de la prórroga. Radica tu solicitud inmediatamente a través del Formulario Único de Trámites (FUT).
+                <div style="margin-top: 8px;">
+                  <a href="${preset.futFormUrl || preset.officialPortalUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-destructive btn-sm">
+                    Ir al Formulario Oficial de Radicación ↗
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (this.metrics.isInsideOptimalWindow) {
+        // En la ventana óptima (entre 15 y 5 días antes)
+        const daysToSafeLimit = differenceInDays(this.metrics.safeDeadlineDate, this.metrics.today);
+        alertContent = `
+          <div class="alert-box">
+            <svg class="icon icon-lg alert-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <div class="alert-content">
+              <div class="alert-title">
+                <span>Ventana Óptima de Radicación Abierta</span>
+                <span class="badge badge-solid">Faltan ${this.metrics.daysRemaining} días para vencer</span>
+              </div>
+              <div class="alert-desc">
+                ${preset.legalNotice}
+                <br><strong>Recomendación activa:</strong> Te quedan <strong>${daysToSafeLimit} días</strong> para radicar antes del límite seguro (5 días de anticipación). Radicar ahora asegura que tu prórroga se resuelva sin contratiempos.
+                <div style="margin-top: 8px; display: flex; gap: 8px;">
+                  <a href="${preset.officialPortalUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">
+                    Radicar en ${preset.officialEntityName} ↗
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (this.metrics.isBeforeWindow) {
+        // Aún falta para los 15 días previos
+        const daysToWindow = differenceInDays(this.metrics.prorrogaWindowStartDate, this.metrics.today);
+        alertContent = `
+          <div class="card card-sm" style="background-color: var(--surface-sidebar); border: 1px solid var(--color-hairline);">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+              <div style="font-size: 13px; color: var(--color-ink-soft); line-height: 1.45;">
+                <strong>Normativa Oficial:</strong> ${preset.legalNotice}
+                <br><span style="color: var(--color-mid-gray);">La ventana de prórroga se abrirá el <strong>${formatDatePretty(this.metrics.prorrogaWindowStartDate)}</strong> (en ${daysToWindow} días). No intentes solicitarla antes porque el sistema no la aceptará.</span>
+              </div>
+              <span class="badge badge-soft">Estancia Regular</span>
+            </div>
+          </div>
+        `;
+      } else {
+        alertContent = `
+          <div class="card card-sm" style="background-color: var(--surface-sidebar); border: 1px solid var(--color-hairline);">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+              <div style="font-size: 13px; color: var(--color-ink-soft);">
+                <strong>Normativa Vigente:</strong> ${preset.legalNotice}
+              </div>
+              <span class="badge badge-soft">Al día</span>
+            </div>
+          </div>
+        `;
+      }
+
+      this.elAlertContainer.innerHTML = alertContent;
+    }
+  }
+
+  renderMetrics() {
+    if (this.elDaysAbroad) this.elDaysAbroad.textContent = this.metrics.daysAbroad;
+    if (this.elTotalAllowed) this.elTotalAllowed.textContent = `/ ${this.metrics.totalPeriodDays} días autorizados`;
+    if (this.elDaysRemaining) this.elDaysRemaining.textContent = `${this.metrics.daysRemaining} días`;
+    if (this.elExpiryDateText) this.elExpiryDateText.textContent = `Límite actual: ${formatDatePretty(this.metrics.expiryDate)}`;
+
+    if (this.elProgressBar) {
+      this.elProgressBar.style.width = `${this.metrics.percentElapsed}%`;
+      if (this.metrics.isInsideOptimalWindow || this.metrics.isInsideRiskWindow || this.metrics.isExpired) {
+        this.elProgressBar.classList.add("fill-warning");
+      } else {
+        this.elProgressBar.classList.remove("fill-warning");
+      }
+    }
+
+    if (this.elPercentText) {
+      this.elPercentText.textContent = `${this.metrics.percentElapsed}% de estancia completada`;
+    }
+  }
+
+  renderProcedures() {
+    if (!this.elProcedureList) return;
+
+    const html = this.metrics.resolvedProcedures.map(proc => {
+      let deadlineBadge = "";
+      if (proc.daysUntilProc !== null) {
+        if (proc.daysUntilProc > 0) {
+          deadlineBadge = `<span class="badge ${proc.urgent ? 'badge-ember' : 'badge-soft'}">En ${proc.daysUntilProc} días</span>`;
+        } else if (proc.daysUntilProc === 0) {
+          deadlineBadge = `<span class="badge badge-ember">¡Vence Hoy!</span>`;
+        } else {
+          deadlineBadge = `<span class="badge badge-outline">Pasado</span>`;
+        }
+      }
+
+      return `
+        <div class="procedure-item ${proc.urgent && !proc.done ? 'is-urgent' : ''} ${proc.done ? 'is-done' : ''}">
+          <input
+            type="checkbox"
+            class="procedure-checkbox"
+            data-id="${proc.id}"
+            ${proc.done ? "checked" : ""}
+          />
+          <div class="procedure-body">
+            <div class="procedure-title">
+              <span style="${proc.done ? 'text-decoration: line-through; color: var(--color-mid-gray);' : ''}">${proc.title}</span>
+              ${deadlineBadge}
+            </div>
+            <div class="procedure-desc">${proc.desc}</div>
+            
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; flex-wrap: wrap;">
+              ${proc.targetDate ? `<div class="procedure-deadline">Fecha objetivo: ${formatDatePretty(proc.targetDate)}</div>` : '<div></div>'}
+              ${proc.officialUrl ? `
+                <a href="${proc.officialUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="height: 24px; padding: 0 8px; font-size: 11px; text-decoration: none;">
+                  Portal Oficial ↗
+                </a>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    this.elProcedureList.innerHTML = html;
+
+    // Attach checkbox toggles with auto-extension of stay
+    this.elProcedureList.querySelectorAll(".procedure-checkbox").forEach(cb => {
+      cb.addEventListener("change", (e) => {
+        const id = e.target.getAttribute("data-id");
+        const isChecked = e.target.checked;
+        this.state.completedProcedures[id] = isChecked;
+
+        // Auto-actualizar estancia si el trámite es de prórroga aprobada.
+        // La prórroga solo amplía `allowedDays`; el vencimiento se vuelve a derivar.
+        const proc = this.metrics.resolvedProcedures.find(p => p.id === id);
+        if (proc && proc.isExtensionAction && proc.extendsDays) {
+          if (isChecked) {
+            this.state.allowedDays += proc.extendsDays;
+            const newExpiry = addDays(parseDate(this.state.entryDateStr), this.state.allowedDays - 1);
+            this.showNotification(`¡Prórroga Registrada! Tu estancia legal se ha extendido +${proc.extendsDays} días (hasta el ${formatDatePretty(newExpiry)}).`);
+          } else {
+            this.state.allowedDays -= proc.extendsDays;
+            this.showNotification(`Se revirtió la extensión de ${proc.extendsDays} días.`);
+          }
+        }
+
+        this.update();
+      });
+    });
+  }
+
+  openDayInspector(dateStr) {
+    const selectedDate = parseDate(dateStr);
+    const modalDateTitle = document.getElementById("day-modal-title");
+    const modalBody = document.getElementById("day-modal-body");
+
+    if (modalDateTitle) {
+      modalDateTitle.textContent = formatDatePretty(selectedDate);
+    }
+
+    const dayNumber = differenceInDays(selectedDate, this.metrics.entryDate) + 1;
+    const isAbroad = selectedDate >= this.metrics.entryDate && selectedDate <= this.metrics.expiryDate;
+    const isDeadline = selectedDate.getTime() === this.metrics.expiryDate.getTime();
+    const isProrroga = selectedDate >= this.metrics.prorrogaWindowStartDate && selectedDate <= this.metrics.safeDeadlineDate;
+    const isRisk = selectedDate > this.metrics.safeDeadlineDate && selectedDate <= this.metrics.expiryDate;
+
+    // Events on this date
+    const dayProcs = this.metrics.resolvedProcedures.filter(p => {
+      return p.targetDate && formatDateISO(p.targetDate) === dateStr;
+    });
+
+    const dayCustom = this.state.customEvents.filter(ev => ev.date === dateStr);
+
+    let html = `
+      <div style="display: flex; flex-direction: column; gap: var(--spacing-12);">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          ${isAbroad ? `<span class="badge badge-solid">Día ${dayNumber} fuera de tu país</span>` : `<span class="badge badge-outline">Fuera de intervalo de viaje</span>`}
+          ${isDeadline ? `<span class="badge badge-ember">Fecha Límite Legal</span>` : ''}
+          ${isProrroga ? `<span class="badge badge-soft">Ventana Óptima de Radicación</span>` : ''}
+          ${isRisk ? `<span class="badge badge-ember">Riesgo Alto por Tiempos de Respuesta</span>` : ''}
+        </div>
+
+        <div class="card card-sm" style="background-color: var(--surface-sidebar);">
+          <div class="text-caption">Hitos Migratorios y Trámites Oficiales</div>
+          ${dayProcs.length === 0 ? `<div style="font-size: 13px; color: var(--color-mid-gray); margin-top: 4px;">Sin trámites oficiales fijados para este día.</div>` : ''}
+          ${dayProcs.map(p => `
+            <div style="margin-top: 8px; font-size: 13px; font-weight: 500;">
+              ★ ${p.title}
+              <div style="font-size: 12px; color: var(--color-mid-gray); font-weight: 400; margin-top: 2px;">${p.desc}</div>
+              ${p.officialUrl ? `<div style="margin-top: 4px;"><a href="${p.officialUrl}" target="_blank" rel="noopener noreferrer" style="font-size: 11px; color: var(--color-ink);">Abrir portal oficial ↗</a></div>` : ''}
+            </div>
+          `).join("")}
+        </div>
+
+        <div class="card card-sm" style="background-color: var(--surface-sidebar);">
+          <div class="text-caption">Eventos y Recordatorios Personales</div>
+          ${dayCustom.length === 0 ? `<div style="font-size: 13px; color: var(--color-mid-gray); margin-top: 4px;">No hay notas personales registradas.</div>` : ''}
+          ${dayCustom.map(ev => `
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px; font-size: 13px;">
+              <span>• ${ev.title}</span>
+              <button class="btn btn-outline btn-sm delete-event-btn" data-id="${ev.id}">Eliminar</button>
+            </div>
+          `).join("")}
+        </div>
+
+        <div style="margin-top: 8px;">
+          <div class="input-label">Agregar recordatorio para este día:</div>
+          <div style="display: flex; gap: 8px; margin-top: 6px;">
+            <input type="text" id="new-day-event-input" class="input" placeholder="Ej. Pagar tasa, llevar carta a decanatura..." />
+            <button class="btn btn-primary btn-sm" id="btn-add-day-event">Guardar</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    if (modalBody) {
+      modalBody.innerHTML = html;
+
+      // Bind add event
+      const btnAdd = modalBody.querySelector("#btn-add-day-event");
+      const inputAdd = modalBody.querySelector("#new-day-event-input");
+      if (btnAdd && inputAdd) {
+        btnAdd.addEventListener("click", () => {
+          const title = inputAdd.value.trim();
+          if (title) {
+            this.state.customEvents.push({
+              id: "ev-" + Date.now(),
+              title,
+              date: dateStr
+            });
+            this.update();
+            this.openDayInspector(dateStr);
+          }
+        });
+      }
+
+      // Bind delete events
+      modalBody.querySelectorAll(".delete-event-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          const id = e.target.getAttribute("data-id");
+          this.state.customEvents = this.state.customEvents.filter(ev => ev.id !== id);
+          this.update();
+          this.openDayInspector(dateStr);
+        });
+      });
+    }
+
+    if (this.dayModal) {
+      this.dayModal.classList.add("active");
+    }
+  }
+
+  bindEvents() {
+    // Open Config Modal
+    const btnOpenConfig = document.getElementById("btn-open-config");
+    if (btnOpenConfig) {
+      btnOpenConfig.addEventListener("click", () => {
+        this.openConfigModal();
+      });
+    }
+
+    // Close Modals
+    document.querySelectorAll("[data-close-modal]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (this.configModal) this.configModal.classList.remove("active");
+        if (this.dayModal) this.dayModal.classList.remove("active");
+      });
+    });
+
+    // Close on backdrop click
+    [this.configModal, this.dayModal].forEach(modal => {
+      if (modal) {
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) {
+            modal.classList.remove("active");
+          }
+        });
+      }
+    });
+
+    // Preset selection change in header
+    if (this.elPresetSelect) {
+      this.elPresetSelect.value = this.state.presetId;
+      this.elPresetSelect.addEventListener("change", (e) => {
+        this.applyPreset(e.target.value);
+      });
+    }
+
+    // Save config form
+    const formConfig = document.getElementById("form-config-trip");
+    if (formConfig) {
+      formConfig.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const entryInput = document.getElementById("config-entry-date");
+        const expiryInput = document.getElementById("config-expiry-date");
+        const originInput = document.getElementById("config-origin");
+        const destinationInput = document.getElementById("config-destination");
+        const visaInput = document.getElementById("config-visa");
+
+        if (entryInput && entryInput.value) this.state.entryDateStr = entryInput.value;
+        if (expiryInput && expiryInput.value) {
+          // El usuario registra el vencimiento; se convierte a la métrica canónica
+          // `allowedDays` (conteo inclusivo) — el vencimiento vuelve a derivarse de ella.
+          const entry = parseDate(this.state.entryDateStr);
+          const expiry = parseDate(expiryInput.value);
+          this.state.allowedDays = Math.max(1, differenceInDays(expiry, entry) + 1);
+        }
+        if (originInput && originInput.value) this.state.originCountry = originInput.value;
+        if (destinationInput && destinationInput.value) this.state.destinationCountry = destinationInput.value;
+        if (visaInput && visaInput.value) this.state.visaType = visaInput.value;
+
+        if (this.configModal) this.configModal.classList.remove("active");
+        this.update();
+      });
+    }
+  }
+
+  openConfigModal() {
+    const entryInput = document.getElementById("config-entry-date");
+    const expiryInput = document.getElementById("config-expiry-date");
+    const originInput = document.getElementById("config-origin");
+    const destinationInput = document.getElementById("config-destination");
+    const visaInput = document.getElementById("config-visa");
+    const modalPresetSelect = document.getElementById("config-preset-select");
+
+    if (entryInput) entryInput.value = this.state.entryDateStr;
+    // El vencimiento es derivado: entry + (allowedDays - 1) con conteo inclusivo.
+    if (expiryInput) {
+      expiryInput.value = formatDateISO(
+        addDays(parseDate(this.state.entryDateStr), this.state.allowedDays - 1)
+      );
+    }
+    if (originInput) originInput.value = this.state.originCountry;
+    if (destinationInput) destinationInput.value = this.state.destinationCountry;
+    if (visaInput) visaInput.value = this.state.visaType;
+    if (modalPresetSelect) {
+      modalPresetSelect.value = this.state.presetId;
+      modalPresetSelect.onchange = (e) => {
+        this.applyPreset(e.target.value);
+        if (entryInput) entryInput.value = this.state.entryDateStr;
+        if (expiryInput) {
+          expiryInput.value = formatDateISO(
+            addDays(parseDate(this.state.entryDateStr), this.state.allowedDays - 1)
+          );
+        }
+        if (originInput) originInput.value = this.state.originCountry;
+        if (destinationInput) destinationInput.value = this.state.destinationCountry;
+        if (visaInput) visaInput.value = this.state.visaType;
+      };
+    }
+
+    if (this.configModal) this.configModal.classList.add("active");
+  }
+
+  applyPreset(presetId) {
+    const preset = MIGRATION_PRESETS[presetId];
+    if (!preset) return;
+
+    this.state.presetId = presetId;
+    this.state.destinationCountry = preset.destinationCountry;
+    this.state.visaType = preset.visaType;
+    if (preset.originCountry) this.state.originCountry = preset.originCountry;
+
+    // Reset standard dates based on preset.
+    // Semilla demo: entró hace `defaultStayDays` días y tiene `totalAllowedDays`
+    // iniciales; el vencimiento se deriva siempre, nunca se guarda.
+    const today = new Date();
+    const entryDate = addDays(today, -(preset.defaultStayDays ?? 0));
+
+    this.state.entryDateStr = formatDateISO(entryDate);
+    this.state.allowedDays = preset.totalAllowedDays;
+    this.state.completedProcedures = {};
+
+    if (this.elPresetSelect) this.elPresetSelect.value = presetId;
+
+    this.update();
+  }
+
+  /**
+   * Reconstruye los `<option>` de ambos selectores a partir del registro
+   * publicado (`MIGRATION_PRESETS`). El markup estático de index.html queda
+   * siempre sincronizado con lo que el registro realmente publica.
+   */
+  syncPresetOptions() {
+    const presets = Object.values(MIGRATION_PRESETS);
+    if (presets.length === 0) return;
+
+    ["preset-selector", "config-preset-select"].forEach((selectId) => {
+      const select = document.getElementById(selectId);
+      if (!select) return;
+
+      select.innerHTML = presets
+        .map(p => (
+          `<option value="${p.id}" ${p.id === this.state.presetId ? "selected" : ""}>` +
+          `${p.destinationCountry} — ${p.visaType}` +
+          `</option>`
+        ))
+        .join("");
+      select.value = this.state.presetId;
+    });
+  }
 }
 
-// Start app on DOMContentLoaded
+// ========================================================
+// PUBLIC API — imported by src/main.js
+// ========================================================
+export { FuPaisApp };
+
+export async function init() {
+  window.fuPaisApp = await FuPaisApp.create();
+  return window.fuPaisApp;
+}
