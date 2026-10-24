@@ -324,9 +324,17 @@ export const COUNTRY_TASKS = {
      *  - límite seguro    → 5 días antes     → dayOffset (90 − 5)  = 85
      *  - aprobación       → en el vencimiento→ dayOffset 90
      *
-     * COLA LEGAL (no reescribir aquí): los claim "+90 días adicionales" y
-     * "máximo legal 180 días por año" provienen de la referencia y están
-     * pendientes de verificación.
+     * COLA LEGAL — VERIFICADO 2026-10-23 (no reescribir aquí): los claims
+     * "+90 días adicionales" y "máximo legal 180 días por año" provienen de
+     * la referencia y fueron confirmados contra la Resolución 5477 de 2022
+     * (normograma Cancillería: "permanencia autorizada... 90 días,
+     * prorrogable por otros 90 días calendario, continuos o discontinuos";
+     * tope de 180 días por año civil reiterado por fuentes secundarias).
+     * Aplican al PIP de visitante/turismo, base reglamentaria de este set.
+     * CAVEAT ABIERTO: la extensión idéntica para PIP-2 (intercambiista) no
+     * se pudo confirmar documento por documento (normograma 403 al fetch;
+     * existe una Resolución 599 de 2026 posterior, alcance desconocido);
+     * los trámites de la referencia se portaron verbatim igualmente.
      */
     intercambio: [
       {
