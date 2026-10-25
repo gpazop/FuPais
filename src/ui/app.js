@@ -4,6 +4,7 @@
 // ========================================================
 
 import { MIGRATION_PRESETS } from "../data/migrationPresets.js";
+import { getCountryRule } from "../data/presets.js";
 import { buildDashboard } from "../domain/dashboard.js";
 import {
   formatDateISO,
@@ -493,18 +494,16 @@ class FuPaisApp {
       formConfig.addEventListener("submit", (e) => {
         e.preventDefault();
         const entryInput = document.getElementById("config-entry-date");
-        const expiryInput = document.getElementById("config-expiry-date");
+        const durationSelect = document.getElementById("config-duration");
         const originInput = document.getElementById("config-origin");
         const destinationInput = document.getElementById("config-destination");
         const visaInput = document.getElementById("config-visa");
 
         if (entryInput && entryInput.value) this.state.entryDateStr = entryInput.value;
-        if (expiryInput && expiryInput.value) {
-          // El usuario registra el vencimiento; se convierte a la métrica canónica
-          // `allowedDays` (conteo inclusivo) — el vencimiento vuelve a derivarse de ella.
-          const entry = parseDate(this.state.entryDateStr);
-          const expiry = parseDate(expiryInput.value);
-          this.state.allowedDays = Math.max(1, differenceInDays(expiry, entry) + 1);
+        if (durationSelect && durationSelect.value) {
+          // El usuario registra la DURACIÓN en días (conteo inclusivo: la
+          // llegada es el Día 1); el vencimiento vuelve a derivarse siempre.
+          this.state.allowedDays = Math.max(1, parseInt(durationSelect.value, 10) || 1);
         }
         if (originInput && originInput.value) this.state.originCountry = originInput.value;
         if (destinationInput && destinationInput.value) this.state.destinationCountry = destinationInput.value;
@@ -518,32 +517,29 @@ class FuPaisApp {
 
   openConfigModal() {
     const entryInput = document.getElementById("config-entry-date");
-    const expiryInput = document.getElementById("config-expiry-date");
     const originInput = document.getElementById("config-origin");
     const destinationInput = document.getElementById("config-destination");
     const visaInput = document.getElementById("config-visa");
     const modalPresetSelect = document.getElementById("config-preset-select");
 
     if (entryInput) entryInput.value = this.state.entryDateStr;
-    // El vencimiento es derivado: entry + (allowedDays - 1) con conteo inclusivo.
-    if (expiryInput) {
-      expiryInput.value = formatDateISO(
-        addDays(parseDate(this.state.entryDateStr), this.state.allowedDays - 1)
-      );
-    }
+    // La duración se pobla desde la regla legal del preset activo y el
+    // preview muestra el vencimiento derivado (llegada = Día 1).
+    this.syncDurationOptions();
+    this.updateDurationPreview();
     if (originInput) originInput.value = this.state.originCountry;
     if (destinationInput) destinationInput.value = this.state.destinationCountry;
     if (visaInput) visaInput.value = this.state.visaType;
+    entryInput.oninput = () => this.updateDurationPreview();
+    const durationSelect = document.getElementById("config-duration");
+    if (durationSelect) durationSelect.onchange = () => this.updateDurationPreview();
     if (modalPresetSelect) {
       modalPresetSelect.value = this.state.presetId;
       modalPresetSelect.onchange = (e) => {
         this.applyPreset(e.target.value);
         if (entryInput) entryInput.value = this.state.entryDateStr;
-        if (expiryInput) {
-          expiryInput.value = formatDateISO(
-            addDays(parseDate(this.state.entryDateStr), this.state.allowedDays - 1)
-          );
-        }
+        this.syncDurationOptions();
+        this.updateDurationPreview();
         if (originInput) originInput.value = this.state.originCountry;
         if (destinationInput) destinationInput.value = this.state.destinationCountry;
         if (visaInput) visaInput.value = this.state.visaType;
@@ -551,6 +547,58 @@ class FuPaisApp {
     }
 
     if (this.configModal) this.configModal.classList.add("active");
+  }
+
+  /**
+   * Pobla el selector de duración con los montos legales del preset activo:
+   * la autorización inicial y el tope del periodo (si la regla lo declara).
+   * Si el estado persistido tiene una duración fuera de esos montos, se
+   * añade como opción "(actual)" para no perderla al reabrir el modal.
+   */
+  syncDurationOptions() {
+    const select = document.getElementById("config-duration");
+    if (!select) return;
+
+    const preset = this.getPreset();
+    const rule = getCountryRule(preset.countryCode, preset.stayType);
+
+    const amounts = [];
+    const pushAmount = (days, note) => {
+      if (!Number.isInteger(days) || days < 1) return;
+      if (!amounts.some(a => a.days === days)) amounts.push({ days, note });
+    };
+    // La regla legal es la única fuente de verdad de los montos. Si faltara
+    // (preset sin regla — no ocurre entre los publicados), cae al total del propio preset.
+    if (rule) {
+      pushAmount(rule.allowedDays, "autorización inicial");
+      if (rule.maxDaysInWindow) pushAmount(rule.maxDaysInWindow, "tope del periodo");
+    } else {
+      pushAmount(preset.totalAllowedDays, "autorización inicial");
+    }
+    // Duración actual puede ser personalizada o heredada de versiones previas.
+    pushAmount(this.state.allowedDays, "actual");
+
+    amounts.sort((a, b) => a.days - b.days);
+    select.innerHTML = amounts.map(a => {
+      const tag = a.note === "autorización inicial" ? "autorización inicial"
+        : a.note === "actual" ? "actual"
+        : "tope del periodo";
+      return `<option value="${a.days}" ${a.days === this.state.allowedDays ? "selected" : ""}>${a.days} días (${tag})</option>`;
+    }).join("");
+  }
+
+  /** Recalcula el preview del vencimiento derivado: entrada + (días - 1). */
+  updateDurationPreview() {
+    const preview = document.getElementById("config-duration-preview");
+    const select = document.getElementById("config-duration");
+    const entryInput = document.getElementById("config-entry-date");
+    if (!preview || !select || !select.value) return;
+
+    const entryStr = entryInput && entryInput.value ? entryInput.value : this.state.entryDateStr;
+    const entry = parseDate(entryStr);
+    const days = Math.max(1, parseInt(select.value, 10) || 1);
+    const expiry = addDays(entry, days - 1);
+    preview.textContent = `El permiso vencería el ${formatDatePretty(expiry)} (la llegada cuenta como Día 1).`;
   }
 
   applyPreset(presetId) {
