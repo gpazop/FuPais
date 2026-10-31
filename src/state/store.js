@@ -9,6 +9,9 @@
 //     nunca se guarda. `normalizeState()` elimina el campo legacy al leer.
 //   - La persistencia pasa por `services/storage.js` (puerto async),
 //     no por localStorage directo.
+//   - Toda mutación de estado se anuncia con `notify(state)`; los
+//     consumidores (hoy: el render de `ui/app.js`) se suscriben con
+//     `subscribe(listener)`. Ningún handler llama a `update()` a mano.
 // ========================================================
 
 import { storage } from "../services/storage.js";
@@ -80,4 +83,42 @@ export async function loadState() {
 
 export async function saveState(state) {
   await storage.set(STORAGE_KEY, state);
+}
+
+// --------------------------------------------------------
+// Suscripciones
+// El store no posee el objeto de estado (vive en `ui/app.js`), pero sí
+// centraliza el aviso de que cambió. Cualquier consumidor —hoy el render,
+// mañana el dock u otro módulo— se suscribe aquí en vez de que cada handler
+// llame a `update()` por su cuenta.
+// --------------------------------------------------------
+
+const listeners = new Set();
+
+/**
+ * Registra un listener que se ejecuta en cada `notify(state)`.
+ * @param {(state: object) => void} listener
+ * @returns {() => void} función para darse de baja
+ */
+export function subscribe(listener) {
+  if (typeof listener !== "function") {
+    throw new TypeError("El suscriptor debe ser una función");
+  }
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+/**
+ * Anuncia una mutación de estado. Un suscriptor que falle no debe impedir
+ * que se ejecuten los demás ni romper el handler que originó el cambio.
+ * @param {object} state
+ */
+export function notify(state) {
+  for (const listener of listeners) {
+    try {
+      listener(state);
+    } catch (error) {
+      console.error("Un suscriptor del estado falló:", error);
+    }
+  }
 }

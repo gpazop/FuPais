@@ -15,7 +15,7 @@ import {
 } from "../domain/dates.js";
 import { FuPaisCalendar } from "../components/calendar.js";
 import { FuPaisDock } from "../components/dock.js";
-import { loadState, saveState } from "../state/store.js";
+import { loadState, saveState, subscribe, notify } from "../state/store.js";
 
 class FuPaisApp {
   constructor(state) {
@@ -27,6 +27,11 @@ class FuPaisApp {
     this.syncPresetOptions();
     this.initCalendar();
     this.bindEvents();
+
+    // El render es un suscriptor más del store: cualquier mutación anunciada
+    // con commit() vuelve a pintar sin que el handler conozca update().
+    this.unsubscribe = subscribe(() => this.update());
+
     this.update();
   }
 
@@ -47,6 +52,14 @@ class FuPaisApp {
 
   async persist() {
     await saveState(this.state);
+  }
+
+  /**
+   * Anuncia al store que el estado cambió. Sustituye a las llamadas directas
+   * a `update()` desde los handlers: el re-render llega por suscripción.
+   */
+  commit() {
+    notify(this.state);
   }
 
   initElements() {
@@ -346,7 +359,7 @@ class FuPaisApp {
           }
         }
 
-        this.update();
+        this.commit();
       });
     });
   }
@@ -430,7 +443,7 @@ class FuPaisApp {
               title,
               date: dateStr
             });
-            this.update();
+            this.commit();
             this.openDayInspector(dateStr);
           }
         });
@@ -441,7 +454,7 @@ class FuPaisApp {
         btn.addEventListener("click", (e) => {
           const id = e.target.getAttribute("data-id");
           this.state.customEvents = this.state.customEvents.filter(ev => ev.id !== id);
-          this.update();
+          this.commit();
           this.openDayInspector(dateStr);
         });
       });
@@ -510,7 +523,7 @@ class FuPaisApp {
         if (visaInput && visaInput.value) this.state.visaType = visaInput.value;
 
         if (this.configModal) this.configModal.classList.remove("active");
-        this.update();
+        this.commit();
       });
     }
   }
@@ -622,7 +635,7 @@ class FuPaisApp {
 
     if (this.elPresetSelect) this.elPresetSelect.value = presetId;
 
-    this.update();
+    this.commit();
   }
 
   /**
