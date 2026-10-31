@@ -11,10 +11,20 @@
 
 const normalizeText = (value) => (typeof value === "string" ? value.trim() : "");
 
+// The same adapter runs in the browser and inside the serverless proxy.
+// Nominatim's usage policy requires an identifying User-Agent for
+// server-side calls; browsers silently drop that forbidden header, so
+// setting it here is safe for both runtimes.
+const REQUEST_HEADERS = {
+  Accept: "application/json",
+  "User-Agent": "FuPais/1.0 (+https://github.com/gpazop/FuPais)"
+};
+
 export const publicGeocodingAdapter = {
   async reverseGeocode(lat, lng) {
     const res = await fetch(
-      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=es`
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=es`,
+      { headers: REQUEST_HEADERS }
     );
     if (!res.ok) return null;
 
@@ -31,7 +41,8 @@ export const publicGeocodingAdapter = {
 
   async searchPlace(query) {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`,
+      { headers: REQUEST_HEADERS }
     );
     if (!res.ok) return null;
 
