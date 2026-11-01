@@ -33,6 +33,7 @@ import ProceduresList from "./components/ProceduresList.jsx";
 import CountryCards from "./components/CountryCards.jsx";
 import Map from "./components/Map.jsx";
 import ConfigModal from "./components/ConfigModal.jsx";
+import DayModal from "./components/DayModal.jsx";
 import DockWrapper from "./components/DockWrapper.jsx";
 
 export default function App() {
@@ -41,6 +42,8 @@ export default function App() {
   const [metrics, setMetrics] = useState(null);
   const [configModalOpen, setConfigModalOpen] = useState(false);
   const [dayModalOpen, setDayModalOpen] = useState(false);
+  const [inspectedDateStr, setInspectedDateStr] = useState(null);
+  const [inspectedDate, setInspectedDate] = useState(null);
 
   // --- Refs para instancias imperativas vanilla ---
   const dockRef = useRef(null);
@@ -145,101 +148,45 @@ export default function App() {
     });
   }, [state]);
 
-
+  // --- openConfigModal ---
+  const openConfigModal = useCallback(() => {
+    setConfigModalOpen(true);
+  }, []);
 
   // --- openDayInspector ---
   const openDayInspector = useCallback((dateStr) => {
     if (!state || !metrics) return;
-    setDayModalOpen(true);
     const selectedDate = parseDate(dateStr);
-    const modalDateTitle = document.getElementById("day-modal-title");
-    const modalBody = document.getElementById("day-modal-body");
-    if (modalDateTitle) modalDateTitle.textContent = formatDatePretty(selectedDate);
-
-    const dayNumber = differenceInDays(selectedDate, metrics.entryDate) + 1;
-    const isAbroad =
-      selectedDate >= metrics.entryDate && selectedDate <= metrics.expiryDate;
-    const isDeadline = selectedDate.getTime() === metrics.expiryDate.getTime();
-    const isProrroga =
-      selectedDate >= metrics.prorrogaWindowStartDate &&
-      selectedDate <= metrics.safeDeadlineDate;
-    const isRisk =
-      selectedDate > metrics.safeDeadlineDate &&
-      selectedDate <= metrics.expiryDate;
-    const dayProcs = metrics.resolvedProcedures.filter(
-      (p) => p.targetDate && formatDateISO(p.targetDate) === dateStr
-    );
-    const dayCustom = state.customEvents.filter((ev) => ev.date === dateStr);
-
-    const html = `
-      <div style="display: flex; flex-direction: column; gap: var(--spacing-12);">
-        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-          ${isAbroad ? `<span class="badge badge-solid">Día ${dayNumber} fuera de tu país</span>` : `<span class="badge badge-outline">Fuera de intervalo de viaje</span>`}
-          ${isDeadline ? `<span class="badge badge-ember">Fecha Límite Legal</span>` : ''}
-          ${isProrroga ? `<span class="badge badge-soft">Ventana Óptima de Radicación</span>` : ''}
-          ${isRisk ? `<span class="badge badge-ember">Riesgo Alto por Tiempos de Respuesta</span>` : ''}
-        </div>
-        <div class="card card-sm" style="background-color: var(--surface-sidebar);">
-          <div class="text-caption">Hitos Migratorios y Trámites Oficiales</div>
-          ${dayProcs.length === 0 ? `<div style="font-size: 13px; color: var(--color-mid-gray); margin-top: 4px;">Sin trámites oficiales fijados para este día.</div>` : ''}
-          ${dayProcs.map((p) => `
-            <div style="margin-top: 8px; font-size: 13px; font-weight: 500;">
-              ★ ${p.title}
-              <div style="font-size: 12px; color: var(--color-mid-gray); font-weight: 400; margin-top: 2px;">${p.desc}</div>
-              ${p.officialUrl ? `<div style="margin-top: 4px;"><a href="${p.officialUrl}" target="_blank" rel="noopener noreferrer" style="font-size: 11px; color: var(--color-ink);">Abrir portal oficial ↗</a></div>` : ''}
-            </div>
-          `).join("")}
-        </div>
-        <div class="card card-sm" style="background-color: var(--surface-sidebar);">
-          <div class="text-caption">Eventos y Recordatorios Personales</div>
-          ${dayCustom.length === 0 ? `<div style="font-size: 13px; color: var(--color-mid-gray); margin-top: 4px;">No hay notas personales registradas.</div>` : ''}
-          ${dayCustom.map((ev) => `
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px; font-size: 13px;">
-              <span>• ${ev.title}</span>
-              <button class="btn btn-outline btn-sm delete-event-btn" data-id="${ev.id}">Eliminar</button>
-            </div>
-          `).join("")}
-        </div>
-        <div style="margin-top: 8px;">
-          <div class="input-label">Agregar recordatorio para este día:</div>
-          <div style="display: flex; gap: 8px; margin-top: 6px;">
-            <input type="text" id="new-day-event-input" class="input" placeholder="Ej. Pagar tasa, llevar carta a decanatura..." />
-            <button class="btn btn-primary btn-sm" id="btn-add-day-event">Guardar</button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    if (modalBody) {
-      modalBody.innerHTML = html;
-      const btnAdd = modalBody.querySelector("#btn-add-day-event");
-      const inputAdd = modalBody.querySelector("#new-day-event-input");
-      if (btnAdd && inputAdd) {
-        btnAdd.onclick = () => {
-          const title = inputAdd.value.trim();
-          if (title) {
-            const nextEvents = [...state.customEvents, { id: "ev-" + Date.now(), title, date: dateStr }];
-            setState((prev) => ({ ...prev, customEvents: nextEvents }));
-            commit();
-            openDayInspector(dateStr);
-          }
-        };
-      }
-      modalBody.querySelectorAll(".delete-event-btn").forEach((btn) => {
-        btn.onclick = (e) => {
-          const id = e.target.getAttribute("data-id");
-          setState((prev) => ({ ...prev, customEvents: prev.customEvents.filter((ev) => ev.id !== id) }));
-          commit();
-          openDayInspector(dateStr);
-        };
-      });
-    }
-  }, [state, metrics, commit]);
+    setInspectedDateStr(dateStr);
+    setInspectedDate(selectedDate);
+    setDayModalOpen(true);
+  }, [state, metrics]);
 
   // --- closeDayModal ---
   const closeDayModal = useCallback(() => {
     setDayModalOpen(false);
   }, []);
+
+  // --- handleAddEvent ---
+  const handleAddEvent = useCallback((title, dateStr) => {
+    setState((prev) => ({
+      ...prev,
+      customEvents: [
+        ...prev.customEvents,
+        { id: "ev-" + Date.now(), title, date: dateStr }
+      ]
+    }));
+    commit();
+  }, [commit]);
+
+  // --- handleDeleteEvent ---
+  const handleDeleteEvent = useCallback((id) => {
+    setState((prev) => ({
+      ...prev,
+      customEvents: prev.customEvents.filter((ev) => ev.id !== id)
+    }));
+    commit();
+  }, [commit]);
 
   // --- handleProcedureToggle (desde ProceduresList) ---
   const handleProcedureToggle = useCallback(
@@ -478,34 +425,16 @@ export default function App() {
       />
 
       {/* Modal: Detalle del día inspeccionado */}
-      <div
-        className={`modal-overlay ${dayModalOpen ? "active" : ""}`}
-        id="day-modal"
-      >
-        <div className="modal-card">
-          <div className="modal-header">
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <span className="text-caption">Inspección de Fecha</span>
-              <h3 className="text-heading-sm" id="day-modal-title" style={{ fontSize: 20 }}>
-                Detalle del Día
-              </h3>
-            </div>
-            <button
-              className="btn btn-outline btn-sm"
-              onClick={closeDayModal}
-              data-close-modal
-            >
-              ✕
-            </button>
-          </div>
-          <div id="day-modal-body" />
-          <div className="modal-footer">
-            <button className="btn btn-outline" onClick={closeDayModal} data-close-modal>
-              Cerrar
-            </button>
-          </div>
-        </div>
-      </div>
+      <DayModal
+        open={dayModalOpen}
+        onClose={closeDayModal}
+        dateStr={inspectedDateStr}
+        selectedDate={inspectedDate}
+        metrics={metrics}
+        customEvents={state?.customEvents ?? []}
+        onAddEvent={handleAddEvent}
+        onDeleteEvent={handleDeleteEvent}
+      />
     </div>
   );
 }
