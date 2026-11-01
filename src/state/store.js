@@ -46,7 +46,9 @@ export function defaultState() {
       {
         id: "ev-1",
         title: "Entrega de documentos a Oficina de Relaciones Internacionales",
-        date: formatDateISO(addDays(today, 2)),
+        // Día 81 de estancia (entrada = Día 1, así que +80 días). Siempre relativo
+        // a entryDateStr para que sea consistente aunque cambie la fecha de llegada.
+        date: formatDateISO(addDays(entryDate, 80)),
         type: "academico"
       }
     ]

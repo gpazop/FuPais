@@ -76,6 +76,16 @@ export default function ConfigModal({
     );
   }, [duration, entryDateStr]);
 
+  // Cerrar modal con tecla Escape
+  useEffect(() => {
+    if (!open) return;
+    const onKeydown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeydown);
+    return () => window.removeEventListener("keydown", onKeydown);
+  }, [open, onClose]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit({

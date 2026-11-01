@@ -5,7 +5,7 @@
 // DOM en openDayInspector.
 // ========================================================
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Badge from "./Badge.jsx";
 import {
   formatDateISO,
@@ -43,6 +43,16 @@ export default function DayModal({
   const dayProcs = metrics.resolvedProcedures.filter(
     (p) => p.targetDate && formatDateISO(p.targetDate) === dateStr
   );
+
+  // Cerrar modal con tecla Escape
+  useEffect(() => {
+    if (!open) return;
+    const onKeydown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeydown);
+    return () => window.removeEventListener("keydown", onKeydown);
+  }, [open, onClose]);
 
   const handleAddEvent = (e) => {
     e.preventDefault();
