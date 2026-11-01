@@ -2,6 +2,7 @@
 // FUPAIS — APP (React)
 // Migración progresiva de ui/app.js (vanilla) → React.
 // domain/, data/, state/, services/ permanecen intactos.
+// Los componentes UI viven en src/ui/components/.
 // ========================================================
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -21,22 +22,32 @@ import {
   addDays,
   differenceInDays
 } from "../domain/dates.js";
-import { FuPaisCalendar } from "../components/calendar.js";
 import { FuPaisDock } from "../components/dock.js";
+
+// Componentes React
+import Badge from "./components/Badge.jsx";
+import Header from "./components/Header.jsx";
+import SmartAlert from "./components/SmartAlert.jsx";
+import MetricCard from "./components/MetricCard.jsx";
+import CalendarWrapper from "./components/CalendarWrapper.jsx";
+import ProceduresList from "./components/ProceduresList.jsx";
+import CountryCards from "./components/CountryCards.jsx";
+import DockWrapper from "./components/DockWrapper.jsx";
 
 export default function App() {
   // --- Estado local (refleja this.state del vanilla) ---
   const [state, setState] = useState(null);
+  const [metrics, setMetrics] = useState(null);
+  const [configModalOpen, setConfigModalOpen] = useState(false);
+  const [dayModalOpen, setDayModalOpen] = useState(false);
 
   // --- Refs para instancias imperativas vanilla ---
-  const calendarRef = useRef(null);
   const dockRef = useRef(null);
-  const elementsRef = useRef({});
+  const calendarRef = useRef(null);
 
-  // --- store subscription (sustituye a subscribe/notify del vanilla) ---
+  // --- store subscription ---
   useEffect(() => {
     const unsubscribe = subscribe(() => {
-      // notify(this.state) equivalent: React re-renderiza vía setState
       setState((prev) => ({ ...prev }));
     });
     return unsubscribe;
@@ -57,7 +68,6 @@ export default function App() {
   }, [state]);
 
   // --- recalculate ---
-  const [metrics, setMetrics] = useState(null);
   const recalculate = useCallback(() => {
     if (!state) return;
     const preset = getPreset();
@@ -89,26 +99,7 @@ export default function App() {
     saveState(state);
   }, [state]);
 
-  // --- applyPreset ---
-  const applyPreset = useCallback((presetId) => {
-    const preset = MIGRATION_PRESETS[presetId];
-    if (!preset || !state) return;
-    const today = new Date();
-    const entryDate = addDays(today, -(preset.defaultStayDays ?? 0));
-    const next = {
-      ...state,
-      presetId,
-      destinationCountry: preset.destinationCountry,
-      visaType: preset.visaType,
-      originCountry: preset.originCountry ?? state.originCountry,
-      entryDateStr: formatDateISO(entryDate),
-      allowedDays: preset.totalAllowedDays,
-      completedProcedures: {}
-    };
-    setState(next);
-  }, [state]);
-
-  // --- showNotification (toast DOM, mantenido del vanilla) ---
+  // --- showNotification (toast DOM) ---
   const showNotification = useCallback((msg) => {
     const existing = document.getElementById("fupais-toast");
     if (existing) existing.remove();
@@ -135,7 +126,25 @@ export default function App() {
     setTimeout(() => toast.remove(), 4000);
   }, []);
 
-  // --- syncPresetOptions (rebuild <option>s from MIGRATION_PRESETS) ---
+  // --- applyPreset ---
+  const applyPreset = useCallback((presetId) => {
+    const preset = MIGRATION_PRESETS[presetId];
+    if (!preset || !state) return;
+    const today = new Date();
+    const entryDate = addDays(today, -(preset.defaultStayDays ?? 0));
+    setState({
+      ...state,
+      presetId,
+      destinationCountry: preset.destinationCountry,
+      visaType: preset.visaType,
+      originCountry: preset.originCountry ?? state.originCountry,
+      entryDateStr: formatDateISO(entryDate),
+      allowedDays: preset.totalAllowedDays,
+      completedProcedures: {}
+    });
+  }, [state]);
+
+  // --- syncPresetOptions (mantiene <select> en HTML sincronizado) ---
   const syncPresetOptions = useCallback(() => {
     const presets = Object.values(MIGRATION_PRESETS);
     if (presets.length === 0 || !state) return;
@@ -198,12 +207,12 @@ export default function App() {
 
   // --- openConfigModal ---
   const openConfigModal = useCallback(() => {
+    if (!state) return;
     const entryInput = document.getElementById("config-entry-date");
     const originInput = document.getElementById("config-origin");
     const destinationInput = document.getElementById("config-destination");
     const visaInput = document.getElementById("config-visa");
     const modalPresetSelect = document.getElementById("config-preset-select");
-    if (!state) return;
     if (entryInput) entryInput.value = state.entryDateStr;
     syncDurationOptions();
     updateDurationPreview();
@@ -225,24 +234,63 @@ export default function App() {
         if (visaInput) visaInput.value = state.visaType;
       };
     }
-    const configModal = document.getElementById("config-modal");
-    if (configModal) configModal.classList.add("active");
+    setConfigModalOpen(true);
   }, [state, syncDurationOptions, updateDurationPreview, applyPreset]);
+
+  // --- closeConfigModal ---
+  const closeConfigModal = useCallback(() => {
+    setConfigModalOpen(false);
+  }, []);
+
+  // --- handleConfigSubmit ---
+  const handleConfigSubmit = useCallback((e) => {
+    e.preventDefault();
+    if (!state) return;
+    const entryInput = document.getElementById("config-entry-date");
+    const durationSelect = document.getElementById("config-duration");
+    const originInput = document.getElementById("config-origin");
+    const destinationInput = document.getElementById("config-destination");
+    const visaInput = document.getElementById("config-visa");
+
+    const next = { ...state };
+    if (entryInput && entryInput.value) next.entryDateStr = entryInput.value;
+    if (durationSelect && durationSelect.value) {
+      next.allowedDays = Math.max(1, parseInt(durationSelect.value, 10) || 1);
+    }
+    if (originInput && originInput.value) next.originCountry = originInput.value;
+    if (destinationInput && destinationInput.value)
+      next.destinationCountry = destinationInput.value;
+    if (visaInput && visaInput.value) next.visaType = visaInput.value;
+
+    setState(next);
+    setConfigModalOpen(false);
+    commit();
+  }, [state, commit]);
 
   // --- openDayInspector ---
   const openDayInspector = useCallback((dateStr) => {
     if (!state || !metrics) return;
+    setDayModalOpen(true);
     const selectedDate = parseDate(dateStr);
     const modalDateTitle = document.getElementById("day-modal-title");
     const modalBody = document.getElementById("day-modal-body");
     if (modalDateTitle) modalDateTitle.textContent = formatDatePretty(selectedDate);
+
     const dayNumber = differenceInDays(selectedDate, metrics.entryDate) + 1;
-    const isAbroad = selectedDate >= metrics.entryDate && selectedDate <= metrics.expiryDate;
+    const isAbroad =
+      selectedDate >= metrics.entryDate && selectedDate <= metrics.expiryDate;
     const isDeadline = selectedDate.getTime() === metrics.expiryDate.getTime();
-    const isProrroga = selectedDate >= metrics.prorrogaWindowStartDate && selectedDate <= metrics.safeDeadlineDate;
-    const isRisk = selectedDate > metrics.safeDeadlineDate && selectedDate <= metrics.expiryDate;
-    const dayProcs = metrics.resolvedProcedures.filter((p) => p.targetDate && formatDateISO(p.targetDate) === dateStr);
+    const isProrroga =
+      selectedDate >= metrics.prorrogaWindowStartDate &&
+      selectedDate <= metrics.safeDeadlineDate;
+    const isRisk =
+      selectedDate > metrics.safeDeadlineDate &&
+      selectedDate <= metrics.expiryDate;
+    const dayProcs = metrics.resolvedProcedures.filter(
+      (p) => p.targetDate && formatDateISO(p.targetDate) === dateStr
+    );
     const dayCustom = state.customEvents.filter((ev) => ev.date === dateStr);
+
     const html = `
       <div style="display: flex; flex-direction: column; gap: var(--spacing-12);">
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -281,6 +329,7 @@ export default function App() {
         </div>
       </div>
     `;
+
     if (modalBody) {
       modalBody.innerHTML = html;
       const btnAdd = modalBody.querySelector("#btn-add-day-event");
@@ -305,240 +354,47 @@ export default function App() {
         };
       });
     }
-    const dayModal = document.getElementById("day-modal");
-    if (dayModal) dayModal.classList.add("active");
   }, [state, metrics, commit]);
 
-  // --- renderAlert (HTML string → innerHTML) ---
-  const renderAlertHTML = useCallback((preset, metrics, state) => {
-    if (!preset || !metrics) return null;
-    let alertContent = "";
-    if (metrics.isExpired) {
-      alertContent = `
-        <div class="alert-box">
-          <svg class="icon icon-lg alert-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-          <div class="alert-content">
-            <div class="alert-title text-ember">Estancia Vencida — Plazo Legal Excedido</div>
-            <div class="alert-desc">
-              Tu período autorizado expiró hace ${Math.abs(metrics.daysRemaining)} días. De acuerdo con ${preset.officialEntityName}, deberás solicitar un Salvoconducto (SC-2) por permanencia irregular para salir del país o regularizarte.
-            </div>
-          </div>
-        </div>
-      `;
-    } else if (metrics.isInsideRiskWindow) {
-      alertContent = `
-        <div class="alert-box" style="border-left-color: var(--color-ember);">
-          <svg class="icon icon-lg alert-icon text-ember" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-          <div class="alert-content">
-            <div class="alert-title text-ember">
-              <span>¡Atención Urgente! Quedan solo ${metrics.daysRemaining} días para vencimiento</span>
-              <span class="badge badge-ember">Demora de respuesta: 3-5 días hábiles</span>
-            </div>
-            <div class="alert-desc">
-              Has ingresado en la zona de riesgo por tiempos de respuesta. ${preset.officialEntityName} tarda entre 3 y 5 días en procesar y validar el pago de la prórroga. Radica tu solicitud inmediatamente a través del Formulario Único de Trámites (FUT).
-              <div style="margin-top: 8px;">
-                <a href="${preset.futFormUrl || preset.officialPortalUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-destructive btn-sm">
-                  Ir al Formulario Oficial de Radicación ↗
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    } else if (metrics.isInsideOptimalWindow) {
-      const daysToSafeLimit = differenceInDays(metrics.safeDeadlineDate, metrics.today);
-      alertContent = `
-        <div class="alert-box">
-          <svg class="icon icon-lg alert-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-          <div class="alert-content">
-            <div class="alert-title">
-              <span>Ventana Óptima de Radicación Abierta</span>
-              <span class="badge badge-solid">Faltan ${metrics.daysRemaining} días para vencer</span>
-            </div>
-            <div class="alert-desc">
-              ${preset.legalNotice}
-              <br /><strong>Recomendación activa:</strong> Te quedan <strong>${daysToSafeLimit} días</strong> para radicar antes del límite seguro (5 días de anticipación). Radicar ahora asegura que tu prórroga se resuelva sin contratiempos.
-              <div style="margin-top: 8px; display: flex; gap: 8px;">
-                <a href="${preset.officialPortalUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">
-                  Radicar en ${preset.officialEntityName} ↗
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    } else if (metrics.isBeforeWindow) {
-      const daysToWindow = differenceInDays(metrics.prorrogaWindowStartDate, metrics.today);
-      alertContent = `
-        <div class="card card-sm" style="background-color: var(--surface-sidebar); border: 1px solid var(--color-hairline);">
-          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
-            <div style="font-size: 13px; color: var(--color-ink-soft); line-height: 1.45;">
-              <strong>Normativa Oficial:</strong> ${preset.legalNotice}
-              <br /><span style="color: var(--color-mid-gray);">La ventana de prórroga se abrirá el <strong>${formatDatePretty(metrics.prorrogaWindowStartDate)}</strong> (en ${daysToWindow} días). No intentes solicitarla antes porque el sistema no la aceptará.</span>
-            </div>
-            <span class="badge badge-soft">Estancia Regular</span>
-          </div>
-        </div>
-      `;
-    } else {
-      alertContent = `
-        <div class="card card-sm" style="background-color: var(--surface-sidebar); border: 1px solid var(--color-hairline);">
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
-            <div style="font-size: 13px; color: var(--color-ink-soft);">
-              <strong>Normativa Vigente:</strong> ${preset.legalNotice}
-            </div>
-            <span class="badge badge-soft">Al día</span>
-          </div>
-        </div>
-      `;
-    }
-    return alertContent;
+  // --- closeDayModal ---
+  const closeDayModal = useCallback(() => {
+    setDayModalOpen(false);
   }, []);
 
-  // --- renderProceduresHTML (HTML string + event binding) ---
-  const renderProceduresHTML = useCallback((container, metrics, state, applyPresetFn, commitFn, showNotificationFn, formatDatePrettyFn) => {
-    if (!container || !metrics) return;
-    const html = metrics.resolvedProcedures.map((proc) => {
-      let deadlineBadge = "";
-      if (proc.daysUntilProc !== null) {
-        if (proc.daysUntilProc > 0) {
-          deadlineBadge = `<span class="badge ${proc.urgent ? "badge-ember" : "badge-soft"}">En ${proc.daysUntilProc} días</span>`;
-        } else if (proc.daysUntilProc === 0) {
-          deadlineBadge = `<span class="badge badge-ember">¡Vence Hoy!</span>`;
+  // --- handleProcedureToggle (desde ProceduresList) ---
+  const handleProcedureToggle = useCallback(
+    (id, isChecked, proc) => {
+      setState((prev) => ({
+        ...prev,
+        completedProcedures: { ...prev.completedProcedures, [id]: isChecked }
+      }));
+      if (proc && proc.isExtensionAction && proc.extendsDays) {
+        if (isChecked) {
+          setState((prev) => ({
+            ...prev,
+            allowedDays: prev.allowedDays + proc.extendsDays
+          }));
+          const newExpiry = addDays(
+            parseDate(state.entryDateStr),
+            state.allowedDays + proc.extendsDays - 1
+          );
+          showNotification(
+            `¡Prórroga Registrada! Tu estancia legal se ha extendido +${proc.extendsDays} días (hasta el ${formatDatePretty(newExpiry)}).`
+          );
         } else {
-          deadlineBadge = `<span class="badge badge-outline">Pasado</span>`;
+          setState((prev) => ({
+            ...prev,
+            allowedDays: prev.allowedDays - proc.extendsDays
+          }));
+          showNotification(`Se revirtió la extensión de ${proc.extendsDays} días.`);
         }
       }
-      return `
-        <div class="procedure-item ${proc.urgent && !proc.done ? "is-urgent" : ""} ${proc.done ? "is-done" : ""}">
-          <input type="checkbox" class="procedure-checkbox" data-id="${proc.id}" ${proc.done ? "checked" : ""} />
-          <div class="procedure-body">
-            <div class="procedure-title">
-              <span style="${proc.done ? "text-decoration: line-through; color: var(--color-mid-gray);" : ""}">${proc.title}</span>
-              ${deadlineBadge}
-            </div>
-            <div class="procedure-desc">${proc.desc}</div>
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; flex-wrap: wrap;">
-              ${proc.targetDate ? `<div class="procedure-deadline">Fecha objetivo: ${formatDatePrettyFn(proc.targetDate)}</div>` : '<div></div>'}
-              ${proc.officialUrl ? `<a href="${proc.officialUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="height: 24px; padding: 0 8px; font-size: 11px; text-decoration: none;">Portal Oficial ↗</a>` : ''}
-            </div>
-          </div>
-        </div>
-      `;
-    }).join("");
-    container.innerHTML = html;
-    container.querySelectorAll(".procedure-checkbox").forEach((cb) => {
-      cb.onchange = (e) => {
-        const id = e.target.getAttribute("data-id");
-        const isChecked = e.target.checked;
-        setState((prev) => ({ ...prev, completedProcedures: { ...prev.completedProcedures, [id]: isChecked } }));
-        const proc = metrics.resolvedProcedures.find((p) => p.id === id);
-        if (proc && proc.isExtensionAction && proc.extendsDays) {
-          if (isChecked) {
-            setState((prev) => ({ ...prev, allowedDays: prev.allowedDays + proc.extendsDays }));
-            const newExpiry = addDays(parseDate(state.entryDateStr), state.allowedDays + proc.extendsDays - 1);
-            showNotificationFn(`¡Prórroga Registrada! Tu estancia legal se ha extendido +${proc.extendsDays} días (hasta el ${formatDatePrettyFn(newExpiry)}).`);
-          } else {
-            setState((prev) => ({ ...prev, allowedDays: prev.allowedDays - proc.extendsDays }));
-            showNotificationFn(`Se revirtió la extensión de ${proc.extendsDays} días.`);
-          }
-        }
-        commitFn();
-      };
-    });
-  }, []);
+      commit();
+    },
+    [state, commit, showNotification]
+  );
 
-  // --- Render de métricas y alertas en el DOM existente (index.html) ---
-  const renderMetricsAndAlerts = useCallback(() => {
-    if (!state || !metrics) return;
-    const preset = getPreset();
-
-    // País
-    const elFlag = document.getElementById("country-flag");
-    const elTitle = document.getElementById("country-title");
-    const elSubtitle = document.getElementById("country-subtitle");
-    if (elFlag) elFlag.textContent = preset.countryCode || "CO";
-    if (elTitle) elTitle.textContent = `${state.destinationCountry} • ${state.visaType}`;
-    if (elSubtitle) {
-      elSubtitle.textContent = `País de origen: ${state.originCountry} | Ingreso: ${formatDatePretty(metrics.entryDate)} | Vencimiento: ${formatDatePretty(metrics.expiryDate)}`;
-    }
-
-    // Portal oficial
-    const elPortal = document.getElementById("official-portal-link");
-    if (elPortal && preset.officialPortalUrl) {
-      elPortal.href = preset.officialPortalUrl;
-      elPortal.title = `Ir al portal oficial de ${preset.officialEntityName}`;
-      elPortal.style.display = "inline-flex";
-    }
-
-    // Status badge
-    const elBadge = document.getElementById("header-status-badge");
-    if (elBadge) {
-      elBadge.className = `badge ${metrics.statusBadge.type}`;
-      elBadge.innerHTML = `<span class="badge-dot"></span> ${metrics.statusBadge.label}`;
-    }
-
-    // Smart alert
-    const elAlert = document.getElementById("smart-alert-container");
-    if (elAlert) {
-      elAlert.innerHTML = renderAlertHTML(preset, metrics, state);
-    }
-
-    // Métricas
-    const elDays = document.getElementById("stat-days-abroad");
-    const elTotal = document.getElementById("stat-total-allowed");
-    const elRemaining = document.getElementById("stat-days-remaining");
-    const elExpiry = document.getElementById("stat-expiry-text");
-    const elProgress = document.getElementById("stay-progress-fill");
-    const elPercent = document.getElementById("stay-percent-text");
-    if (elDays) elDays.textContent = metrics.daysAbroad;
-    if (elTotal) elTotal.textContent = `/ ${metrics.totalPeriodDays} días autorizados`;
-    if (elRemaining) elRemaining.textContent = `${metrics.daysRemaining} días`;
-    if (elExpiry) elExpiry.textContent = `Límite actual: ${formatDatePretty(metrics.expiryDate)}`;
-    if (elProgress) {
-      elProgress.style.width = `${metrics.percentElapsed}%`;
-      if (metrics.isInsideOptimalWindow || metrics.isInsideRiskWindow || metrics.isExpired) {
-        elProgress.classList.add("fill-warning");
-      } else {
-        elProgress.classList.remove("fill-warning");
-      }
-    }
-    if (elPercent) elPercent.textContent = `${metrics.percentElapsed}% de estancia completada`;
-
-    // Trámites
-    const elProcs = document.getElementById("procedures-list-container");
-    if (elProcs) {
-      renderProceduresHTML(elProcs, metrics, state, applyPreset, commit, showNotification, formatDatePretty);
-    }
-  }, [state, metrics, getPreset, applyPreset, commit, showNotification]);
-
-  useEffect(() => {
-    renderMetricsAndAlerts();
-  }, [state, metrics, renderMetricsAndAlerts]);
-
-  // --- Calendario (montado sobre el #calendar-mount-point existente en index.html) ---
-  useEffect(() => {
-    if (!state || !metrics) return;
-    const mount = document.getElementById("calendar-mount-point");
-    if (!mount) return;
-    if (!calendarRef.current) {
-      calendarRef.current = new FuPaisCalendar(mount, (dateStr) => openDayInspector(dateStr));
-    }
-    calendarRef.current.setData(metrics, state.customEvents);
-  }, [state, metrics, openDayInspector]);
-
-  // --- Dock vanilla (montado sobre el #fupais-dock existente en index.html) ---
-  useEffect(() => {
-    if (dockRef.current) return;
-    (async () => {
-      const dock = await FuPaisDock.create(appApi);
-      dockRef.current = dock;
-      window.fuPaisDock = dock;
-      window.fuPaisApp = appApi;
-    })();
-  }, [appApi]);
-
-  // --- API expuesta al dock y al HTML estático (sustituye a this.app del vanilla) ---
+  // --- API expuesta al dock y al HTML estático ---
   const appApi = {
     state,
     metrics,
@@ -547,9 +403,319 @@ export default function App() {
     openConfigModal,
     commit,
     getPreset,
-    renderMetricsAndAlerts
+    renderMetricsAndAlerts: () => {
+      // No-op: React renderiza de forma declarativa
+    }
   };
 
-  // React solo provee el estado y la lógica; el HTML estructural vive en index.html.
-  return <div id="app-root" />;
+  // --- Montar Dock vanilla sobre #fupais-dock existente ---
+  useEffect(() => {
+    if (!appApi || dockRef.current) return;
+    (async () => {
+      const dock = await FuPaisDock.create(appApi);
+      dockRef.current = dock;
+      window.fuPaisDock = dock;
+      window.fuPaisApp = appApi;
+    })();
+    return () => {
+      dockRef.current = null;
+      window.fuPaisDock = undefined;
+      window.fuPaisApp = undefined;
+    };
+  }, [appApi]);
+
+  const preset = state ? getPreset() : null;
+
+  return (
+    <div className="app-container">
+      <Header
+        presetId={state?.presetId ?? "colombia_intercambio"}
+        onPresetChange={applyPreset}
+        onOpenConfig={openConfigModal}
+        statusBadge={metrics?.statusBadge ?? { label: "Verificando...", type: "badge-solid" }}
+      />
+
+      {state ? (
+        <>
+          <section className="fupais-view active" id="view-inicio">
+            <section className="country-strip">
+              <div className="country-details">
+                <div
+                  className="badge badge-solid"
+                  id="country-flag-badge"
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    fontWeight: 700,
+                    fontSize: 14,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center"
+                  }}
+                >
+                  {preset?.countryCode || "CO"}
+                </div>
+                <div>
+                  <h2 className="text-subheading" id="country-title" style={{ fontSize: 16 }}>
+                    {state.destinationCountry} • {state.visaType}
+                  </h2>
+                  <p className="text-caption" id="country-subtitle" style={{ textTransform: "none", marginTop: 2 }}>
+                    País de origen: {state.originCountry} | Ingreso: {formatDatePretty(metrics.entryDate)} | Vencimiento: {formatDatePretty(metrics.expiryDate)}
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <span className="rule-pill"><strong>Ventana Legal:</strong> 15 a 5 días previos</span>
+                <span className="rule-pill"><strong>Extensión:</strong> +90 días PTP</span>
+                {preset?.officialPortalUrl && (
+                  <a
+                    id="official-portal-link"
+                    href={preset.officialPortalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-outline btn-sm"
+                    style={{ display: "inline-flex", height: 30 }}
+                  >
+                    Portal Oficial ↗
+                  </a>
+                )}
+              </div>
+            </section>
+
+            <SmartAlert preset={preset} metrics={metrics} />
+
+            <section className="metrics-row">
+              <MetricCard
+                label="Días Fuera de tu País"
+                value={metrics.daysAbroad}
+                sub={`/ ${metrics.totalPeriodDays} días autorizados`}
+              />
+              <MetricCard
+                label="Días Restantes de Estancia Legal"
+                value={metrics.daysRemaining}
+                sub="días"
+                variant={metrics.isInsideOptimalWindow || metrics.isInsideRiskWindow || metrics.isExpired ? "warning" : "default"}
+                progress
+                progressPercent={metrics.percentElapsed}
+                footerLabel={`${metrics.percentElapsed}% de estancia completada`}
+              />
+              <MetricCard
+                label="Ventana de Prórroga PTP"
+                value="15 a 5 Días"
+                sub="previos a vencer"
+              />
+            </section>
+
+            <main className="dashboard-grid">
+              <CalendarWrapper
+                metrics={metrics}
+                customEvents={state.customEvents}
+                onDateSelect={openDayInspector}
+              />
+
+              <aside style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-24)" }}>
+                <div className="card">
+                  <div className="card-header">
+                    <div className="card-header-inner">
+                      <h2 className="card-title">Trámites y Obligaciones</h2>
+                      <p className="text-caption" style={{ textTransform: "none" }}>
+                        Hitos oficiales según tu calidad migratoria
+                      </p>
+                    </div>
+                  </div>
+                  <ProceduresList
+                    procedures={metrics.resolvedProcedures}
+                    onToggleProcedure={handleProcedureToggle}
+                    formatDatePretty={formatDatePretty}
+                  />
+                </div>
+              </aside>
+            </main>
+          </section>
+
+          <section className="fupais-view" id="view-mapa">
+            <div className="map-view-container">
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <h2 className="text-heading-sm">Radar Migratorio & Países Disponibles</h2>
+                  <p className="text-caption" style={{ textTransform: "none", marginTop: 2 }}>
+                    Rastreo satelital GPS en tiempo real de tu ubicación actual y exploración de países con normativas migratorias activas.
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <button id="btn-gps-locate" className="btn btn-primary btn-sm">
+                    Ubicar mi GPS Actual
+                  </button>
+                  <Badge variant="solid" style={{ backgroundColor: "#0ea5e9", color: "#fff" }}>
+                    Live Tracker
+                  </Badge>
+                </div>
+              </div>
+              <CountryCards onSelectPreset={applyPreset} />
+            </div>
+          </section>
+
+          <section className="fupais-view" id="view-archivos" />
+          <section className="fupais-view" id="view-perfil" />
+          <section className="fupais-view" id="view-configuracion" />
+        </>
+      ) : null}
+
+      <DockWrapper appApi={appApi} />
+
+      {/* Modal: Configurar viaje y fechas */}
+      <div
+        className={`modal-overlay ${configModalOpen ? "active" : ""}`}
+        id="config-modal"
+      >
+        <div className="modal-card">
+          <div className="modal-header">
+            <h3 className="text-heading-sm" style={{ fontSize: 20 }}>
+              Ajustar Fechas y Perfil de Viaje
+            </h3>
+            <button
+              className="btn btn-outline btn-sm"
+              onClick={closeConfigModal}
+              data-close-modal
+            >
+              ✕
+            </button>
+          </div>
+          <form id="form-config-trip" onSubmit={handleConfigSubmit}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-16)" }}>
+              <div className="input-group">
+                <label className="input-label" htmlFor="config-preset-select">
+                  Normativa de País de Destino:
+                </label>
+                <select
+                  id="config-preset-select"
+                  className="select"
+                  value={state?.presetId}
+                  onChange={(e) => {
+                    applyPreset(e.target.value);
+                    if (document.getElementById("config-entry-date"))
+                      document.getElementById("config-entry-date").value = state.entryDateStr;
+                    syncDurationOptions();
+                    updateDurationPreview();
+                    if (document.getElementById("config-origin"))
+                      document.getElementById("config-origin").value = state.originCountry;
+                    if (document.getElementById("config-destination"))
+                      document.getElementById("config-destination").value = state.destinationCountry;
+                    if (document.getElementById("config-visa"))
+                      document.getElementById("config-visa").value = state.visaType;
+                  }}
+                >
+                  {Object.values(MIGRATION_PRESETS).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.destinationCountry} — {p.visaType}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--spacing-12)" }}>
+                <div className="input-group">
+                  <label className="input-label" htmlFor="config-origin">País de Origen:</label>
+                  <input
+                    type="text"
+                    id="config-origin"
+                    className="input"
+                    required
+                    defaultValue={state?.originCountry}
+                  />
+                </div>
+                <div className="input-group">
+                  <label className="input-label" htmlFor="config-destination">País de Destino:</label>
+                  <input
+                    type="text"
+                    id="config-destination"
+                    className="input"
+                    required
+                    defaultValue={state?.destinationCountry}
+                  />
+                </div>
+              </div>
+
+              <div className="input-group">
+                <label className="input-label" htmlFor="config-visa">Tipo de Estancia / Visado:</label>
+                <input
+                  type="text"
+                  id="config-visa"
+                  className="input"
+                  required
+                  defaultValue={state?.visaType}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--spacing-12)" }}>
+                <div className="input-group">
+                  <label className="input-label" htmlFor="config-entry-date">Fecha de Salida / Ingreso:</label>
+                  <input
+                    type="date"
+                    id="config-entry-date"
+                    className="input"
+                    required
+                    defaultValue={state?.entryDateStr}
+                    onInput={updateDurationPreview}
+                  />
+                </div>
+                <div className="input-group">
+                  <label className="input-label" htmlFor="config-duration">Duración Autorizada (días):</label>
+                  <select
+                    id="config-duration"
+                    className="select"
+                    required
+                    defaultValue={state?.allowedDays}
+                    onChange={updateDurationPreview}
+                  >
+                    {/* Opciones pobladas por syncDurationOptions */}
+                  </select>
+                  <div id="config-duration-preview" style={{ marginTop: 6, fontSize: 12, color: "var(--color-mid-gray)" }} />
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-outline" onClick={closeConfigModal} data-close-modal>
+                Cancelar
+              </button>
+              <button type="submit" className="btn btn-primary">
+                Guardar y Recalcular
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* Modal: Detalle del día inspeccionado */}
+      <div
+        className={`modal-overlay ${dayModalOpen ? "active" : ""}`}
+        id="day-modal"
+      >
+        <div className="modal-card">
+          <div className="modal-header">
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <span className="text-caption">Inspección de Fecha</span>
+              <h3 className="text-heading-sm" id="day-modal-title" style={{ fontSize: 20 }}>
+                Detalle del Día
+              </h3>
+            </div>
+            <button
+              className="btn btn-outline btn-sm"
+              onClick={closeDayModal}
+              data-close-modal
+            >
+              ✕
+            </button>
+          </div>
+          <div id="day-modal-body" />
+          <div className="modal-footer">
+            <button className="btn btn-outline" onClick={closeDayModal} data-close-modal>
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
