@@ -10,6 +10,7 @@
 // ========================================================
 
 import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 import geocodeHandler from "./api/geocode.js";
 
 const mountGeocodeApi = () => {
@@ -42,5 +43,10 @@ const mountGeocodeApi = () => {
 };
 
 export default defineConfig({
-  plugins: [mountGeocodeApi()]
+  plugins: [react(), mountGeocodeApi()],
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: "./vitest.setup.js"
+  }
 });
