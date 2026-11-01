@@ -1,81 +1,173 @@
-# 🌍 NomadStay — Control de Días Fuera del País & Alertas Migratorias
+# 🌍 FuPais — Control de Días Fuera del País & Alertas Migratorias
 
 > Aplicación web moderna diseñada para estudiantes, turistas, trabajadores y nómadas digitales que necesitan controlar sus días de permanencia en el extranjero, calcular plazos legales, evitar multas por estancia irregular y no olvidar trámites críticos como prórrogas de visa o empadronamientos.
 
+**Estado:** Producción — desplegado en [Vercel](https://fupais.vercel.app/)
+
 ---
 
-## 🏗️ Arquitectura (Fase 1b)
+## 🏗️ Arquitectura
 
-Módulos ES con Vite + Vitest, separación de responsabilidades sin ciclos de imports:
+FuPais sigue una arquitectura en capas donde **domain/**, **data/**, **state/** y **services/** son JavaScript puro sin dependencias del DOM, y **ui/** es la capa de presentación (migración progresiva a React).
 
 ```
 src/
-├── main.js                 # Bootstrap (aplica tema, registra UI, arranca render)
-├── state/store.js          # Estado global (STATE) — sin dependencias del DOM
+├── main.jsx                    # Punto de entrada React (try-catch para diagnóstico)
+├── domain/
+│   ├── dashboard.js            # buildDashboard(): motor de cálculo de estancia
+│   ├── dates.js                # Utilidades de fechas (parseDate, addDays, differenceInDays, formatDatePretty)
+│   └── windows.js              # Ventanas operativas de trámites
+├── data/
+│   ├── presets.js              # COUNTRY_RULES: única fuente de verdad legal (CO, PE verificados)
+│   ├── migrationPresets.js     # MIGRATION_PRESETS: registro derivado (filtro de publicación)
+│   ├── presetPresentation.js   # PRESET_PRESENTATION: textos y metadatos de UI
+│   └── presetCoords.js         # PRESET_COORDS: coordenadas por preset publicado
+├── state/
+│   └── store.js                # STORAGE_KEY="fupais_state_v2", subscribe/notify, defaultState
+├── services/
+│   ├── geocoding.js            # Puerto de geocodificación (reverseGeocode, searchPlace)
+│   ├── storage.js              # Puerto de persistencia (localStorage)
+│   └── adapters/
+│       ├── apiGeocodingAdapter.js    # Cliente del endpoint /api/geocode
+│       ├── publicGeocodingAdapter.js # Adapter público con normalización de textos
+│       └── localStorageAdapter.js    # Adapter de localStorage
 ├── ui/
-│   ├── elements.js         # Referencias a elementos del DOM (ULL)
-│   ├── render.js           # Render del dashboard, calendario y alertas (updateUI)
-│   └── app.js              # Inicialización, eventos y flujo de presets
-├── data/presets.js         # Reglas migratorias + trámites por país (getPresetTasks)
-└── (reglas de estancia por país: motor calendar-year para CO/PE verificados)
+│   ├── App.jsx                 # Orquestador de componentes (estado React + store)
+│   ├── main.jsx                # Entry point React
+│   └── components/
+│       ├── Badge.jsx             # Componente base con variantes semánticas
+│       ├── Header.jsx            # Barra superior con preset selector
+│       ├── SmartAlert.jsx        # Alerta migratoria contextual (5 estados)
+│       ├── MetricCard.jsx        # Tarjetas de métrica con barra de progreso
+│       ├── CalendarWrapper.jsx   # Envoltorio React para FuPaisCalendar (vanilla)
+│       ├── ProceduresList.jsx    # Lista de trámites con auto-extensión de prórroga
+│       ├── CountryCards.jsx      # Catálogo de países data-driven (MIGRATION_PRESETS)
+│       ├── Map.jsx               # Mapa Leaflet v5 con pines y rutas de vuelo
+│       ├── ConfigModal.jsx       # Modal "Ajustar Fechas y Perfil de Viaje" (React controlado)
+│       ├── DayModal.jsx          # Modal "Detalle del Día Inspeccionado" (React controlado)
+│       ├── DockWrapper.jsx       # Envoltorio React para FuPaisDock (vanilla)
+│       └── DockLayout.jsx        # HTML del dock, spotlight y drawer en JSX
+├── components/dock/            # Clases vanilla del dock (Spotlight, Drawer, Map, Vault, Settings)
+├── api/
+│   └── geocode.js              # Handler serverless GET /api/geocode (Vercel)
+├── vite.config.js              # Vite + plugin React + montaje de API geocoding
+└── vitest.setup.js             # Configuración de pruebas
 ```
 
-- **Reglas de permanencia**: motor *calendar-year* con datos verificados para 🇨🇴 Colombia (Resolución 5477 de 2022) y 🇵🇪 Perú (Topes 183/365 días) — panel informativo con fuente oficial.
-- **Trámites migratorios por país**: `getPresetTasks(countryCode, stayTypeId)` carga trámites verificados por país y tipo de estancia; cae en fallback a los presets genéricos cuando no hay datos del país.
-- **Tests**: `npx vitest run` cubre el motor de reglas (`tests/rules.test.js`) y los presets por país (`tests/presets.test.js`).
+### Capas clave
+
+| Capa | Descripción |
+|------|-------------|
+| `domain/` | Lógica de negocio pura: `buildDashboard()`, cálculos de fechas, ventanas de trámites |
+| `data/` | Datos de reglas migratorias (COUNTRY_RULES), registro de presets publicados, coordenadas |
+| `state/` | Store único con `subscribe`/`notify`, persistencia en `fupais_state_v2` |
+| `services/` | Puertos y adapters: geocodificación (endpoint `/api/geocode`), almacenamiento |
+| `ui/` | Componentes React que consumen el store y las capas puras |
+
+### Reglas de publicación (data-driven)
+
+Un preset solo se publica si su combinación `(countryCode, stayType)` resuelve a una regla verificada en `COUNTRY_RULES` **y** a una lista de trámites verificados. Actualmente se publican:
+
+- 🇨🇴 **Colombia — Estudiante Intercambio (PIP-2)** (`colombia_intercambio`)
+- 🇨🇴 **Colombia — Turista (PIP-5 / PTP)** (`colombia_turista`)
+- 🇵🇪 **Perú — Turista** (`peru_turista`)
+
+Añadir un país nuevo es solo añadir datos al registro (`presets.js` + `presetPresentation.js` + `presetCoords.js`): nunca se toca la UI ni hay listas hardcodeadas.
 
 ---
 
-## ✨ Características de la Fase 1 (Frontend & Diseño Interactivo)
+## ✨ Características
 
-1. **Dashboard de Permanencia & Conteo de Días**:
+### Dashboard de Permanencia
+- **Días Fuera del País**: Contador automático desde la fecha de llegada (conteo inclusivo: llegada = Día 1)
+- **Días Restantes de Estancia Legal**: Cuenta regresiva respecto al límite legal
+- **Barra de Progreso**: Porcentaje de estancia consumida con cambio de color (Verde = Seguro, Ámbar = Ventana de prórroga, Rojo = Vencido)
+- **Smart Alert**: Alertas contextuales (Ventana Óptima, Zona de Riesgo, Estancia Vencida, Al Día) con enlaces a portales oficiales
 
-   - **Días Fuera del País**: Contador automático y continuo desde tu fecha de llegada.
-   - **Días Restantes de Estancia Legal**: Cuenta regresiva en tiempo real respecto al límite de tu visado o regla de exención.
-   - **Barra de Progreso Visual**: Porcentaje de estancia consumida con cambio dinámico de color (Verde = Seguro, Ámbar = Ventana de prórroga, Rojo = Vencimiento inminente).
-   - **Semáforo de Estatus Migratorio**: Indicador con badges animados para advertirte a tiempo.
-2. **Calendario Migratorio Inteligente**:
+### Calendario Migratorio
+- Vista mensual interactiva con navegación y botón "Hoy"
+- Detección de período de estancia, fecha de entrada y fecha límite legal
+- Clic en cualquier día para inspeccionar detalles y agregar eventos personales
 
-   - Vista de cuadrícula mensual interactiva con navegación hacia adelante/atrás y botón "Hoy".
-   - Detección visual del período de estancia, fecha oficial de entrada y fecha límite legal de salida/prórroga.
-   - Marcadores de colores por severidad de trámites (Crítico, Alta prioridad, Trámite local).
-   - Haz clic en cualquier día para inspeccionar detalles o programar un evento/cita migratoria en esa fecha.
-3. **Centro de Trámites & Alertas Críticas**:
+### Trámites y Obligaciones
+- Lista de trámites con estado (pendiente/completado/urgente)
+- Auto-extensión de estancia al marcar prórroga aprobada
+- Enlaces a portales oficiales de cada país
 
-   - Lista organizada con filtros: **Todos**, **Pendientes**, **Urgentes**, **Completados**.
-   - Checkboxes interactivos para marcar trámites cumplidos con actualización instantánea de métricas.
-   - Botón para agregar trámites personalizados (título, fecha, categoría, requisitos y prioridad).
-   - Presets inteligentes que cargan automáticamente los trámites habituales según tu condición:
-     - 🎓 **Estudiante**: Empadronamiento el día 14, huellas TIE el día 30, y ventana de prórroga que abre 60 días naturales antes del vencimiento (día 305 de una estancia de 365).
-     - ✈️ **Turista (90 días Schengen)**: Alerta a los 45 días, alerta crítica a los 75 días, salida obligatoria el día 90.
-     - 💻 **Nómada Digital**: Control de 183 días de residencia fiscal, acreditación de ingresos.
-     - 💼 **Trabajo**: Seguridad social, apertura de cuenta, renovación laboral.
-4. **Exportación a Calendario Personal (iCal / Google Calendar)**:
+### Mapa Migratorio (Leaflet v5)
+- Pines de países publicados (data-driven desde `MIGRATION_PRESETS`)
+- Rutas de vuelo entre países publicados (Lima → Bogotá)
+- Popup con tipo de visa, límite legal y resumen normativo
+- Click en pin para activar preset y volar el mapa al destino
 
-   - Botón directo para descargar un archivo `.ics` con todos tus trámites y fechas límites para sincronizarlos en Google Calendar, iPhone o Outlook.
-5. **Persistencia de Datos**:
+### Bóveda de Documentos
+- Zona de carga y arrastre para pasaportes, sellos de entrada, cartas universitarias, formularios FUT
+- Filtros por categoría (Pasaportes, Visas, Prórrogas, Académicos)
 
-   - Funciona sin configuración mediante `localStorage` en el navegador del usuario.
+### Configuración
+- Ajustar fecha de llegada y duración autorizada (días)
+- Selector de país de destino con reglas legales verificadas
+- Personalización del dock (posición, tema, auto-ocultar, sonidos)
 
 ---
 
-## 🗄️ Próxima Fase (Fase 3): Backend con Base de Datos Gratuita
+## 🚀 Despliegue
 
-Para cuando pasemos al Backend y queramos que los datos se guarden en la nube con cuentas de usuario (login con Google / Email):
+FuPais está desplegado en **Vercel** con detección automática de Vite. El endpoint serverless `/api/geocode` está montado tanto en desarrollo (`vite dev`) como en producción (Vercel).
 
-| Proveedor de Base de Datos       | Nivel Gratuito (Free Tier)                                                                  | Ventajas para Vercel                                                                                              |
-| -------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| **Supabase** (Recomendado) | 500 MB Postgres, 50,000 usuarios activos mensuales, autenticación y API REST instantánea. | Excelente integración con JavaScript/Vercel, interfaz visual intuitiva y soporte para notificaciones por correo. |
-| **Neon**                   | 0.5 GB Postgres Serverless con ramificaciones (branching).                                  | Integración directa oficial con el Marketplace de Vercel.                                                        |
-| **Firebase Firestore**     | 1 GB de almacenamiento, 50,000 lecturas/día.                                               | Muy simple para desarrollo ágil sin configurar esquemas relacionales.                                            |
+### Despliegue manual
+```bash
+npm install
+npm run build       # Build de producción
+npm run preview     # Preview local del build
+```
 
-### Hoja de ruta para la Fase 3 (Backend):
+### Variables de entorno
+No se requieren variables de entorno para el despliegue básico. El endpoint `/api/geocode` se monta automáticamente mediante el plugin de Vite.
 
-> ✅ La Fase 2 ya está lista: datos migratorios verificados para Colombia y Perú con panel de reglas oficiales.
+---
 
-1. Crear proyecto gratuito en **Supabase** (recomendado).
-2. Diseñar las tablas relacionales:
-   - `users` (id, email, país de origen, país de destino)
-   - `stays` (id, user_id, arrival_date, allowed_days, stay_type)
-   - `tasks` (id, stay_id, title, date, priority, category, completed, notes)
-3. Crear endpoints API serverless en `/api` dentro de Vercel para sincronización automática multidispositivo y recordatorios por email/Push Notifications.
+## 🧪 Pruebas
+
+FuPais utiliza **Vitest** como framework de pruebas. Las capas puras (`domain/`, `data/`, `state/`, `services/`) están cubiertas por 66 pruebas:
+
+```bash
+npm test            # Ejecuta todas las pruebas (66/66)
+npm run build       # Build de producción
+npm run dev         # Servidor de desarrollo (localhost:5173)
+```
+
+---
+
+## 📋 Reglas de Permanencia Verificadas
+
+| País | Tipo de Estancia | Días Iniciales | Prórroga | Fuente |
+|------|-----------------|----------------|----------|--------|
+| 🇨🇴 Colombia | Estudiante Intercambio (PIP-2) | 90 | +90 (PTP) | Resolución 5477/2022 |
+| 🇨🇴 Colombia | Turista (PIP-5 / PTP) | 90 | +90 (PTP) | Migración Colombia |
+| 🇵🇪 Perú | Turista | 90 | Hasta 183/365 | Superintendencia de Migraciones |
+
+> **Nota:** El vencimiento SIEMPRE se deriva de `{entryDateStr, allowedDays}` (llegada = Día 1, canónico `/89`). Nunca se guarda en estado.
+
+---
+
+## 🛣️ Hoja de Ruta
+
+- ✅ **Fase 1**: Frontend vanilla con diseño "papel frostado" y tema Geist
+- ✅ **Fase 2**: Capa de estado unificada (`state/store.js`) con `subscribe`/`notify`
+- ✅ **Fase 3**: Dock modular (clases con `applyMethods`) y puerto de geocodificación
+- ✅ **Fase 4**: Endpoint serverless `/api/geocode` (Vercel) + recorte data-driven de pines/tarjetas
+- ✅ **Fase 5**: Migración progresiva a React (UI en `ui/` + `components/`, capas puras intactas)
+- 🔄 **En curso**: README y documentación de GitHub
+- ⏳ **Pendiente**: Guía de renombrado Vercel a FuPais (ejecución manual por el usuario)
+- ⏳ **Pendiente**: Limpieza diferida (favicon 404, semilla `defaultState()`, mejora de Escape-en-modal)
+
+---
+
+## 📄 Licencia
+
+ISC
+
+---
+
+*FuPais — Gestión de estancia en el exterior, prórrogas y alertas legales oficiales*
