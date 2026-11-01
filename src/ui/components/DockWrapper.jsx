@@ -1,12 +1,12 @@
 // ========================================================
 // FUPAIS — DockWrapper
-// Envoltorio React para FuPaisDock (fachada de 340 líneas,
-// clase vanilla intacta). Se monta sobre #fupais-dock
-// existente en index.html y expone la API de la app.
+// Renderiza el HTML del dock (DockLayout) y monta la
+// lógica vanilla de FuPaisDock sobre los elementos creados.
 // ========================================================
 
 import { useEffect, useRef } from "react";
 import { FuPaisDock } from "../../components/dock.js";
+import DockLayout from "./DockLayout.jsx";
 
 export default function DockWrapper({ appApi }) {
   const dockRef = useRef(null);
@@ -28,5 +28,5 @@ export default function DockWrapper({ appApi }) {
     };
   }, [appApi]);
 
-  return null;
+  return <DockLayout />;
 }
