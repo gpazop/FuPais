@@ -12,7 +12,6 @@ export default function CalendarWrapper({ metrics, customEvents, onDateSelect })
   const mountRef = useRef(null);
 
   useEffect(() => {
-    if (!metrics) return;
     const mount = mountRef.current || document.getElementById("calendar-mount-point");
     if (!mount) return;
 
@@ -23,7 +22,9 @@ export default function CalendarWrapper({ metrics, customEvents, onDateSelect })
       });
     }
 
-    mount.calendarInstance.setData(metrics, customEvents || []);
+    if (metrics) {
+      mount.calendarInstance.setData(metrics, customEvents || []);
+    }
   }, [metrics, customEvents, onDateSelect]);
 
   return (
