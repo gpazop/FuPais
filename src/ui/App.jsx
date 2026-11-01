@@ -13,7 +13,6 @@ import {
   notify
 } from "../state/store.js";
 import { MIGRATION_PRESETS } from "../data/migrationPresets.js";
-import { getCountryRule } from "../data/presets.js";
 import { buildDashboard } from "../domain/dashboard.js";
 import {
   formatDateISO,
@@ -33,6 +32,7 @@ import CalendarWrapper from "./components/CalendarWrapper.jsx";
 import ProceduresList from "./components/ProceduresList.jsx";
 import CountryCards from "./components/CountryCards.jsx";
 import Map from "./components/Map.jsx";
+import ConfigModal from "./components/ConfigModal.jsx";
 import DockWrapper from "./components/DockWrapper.jsx";
 
 export default function App() {
@@ -145,128 +145,7 @@ export default function App() {
     });
   }, [state]);
 
-  // --- syncPresetOptions (mantiene <select> en HTML sincronizado) ---
-  const syncPresetOptions = useCallback(() => {
-    const presets = Object.values(MIGRATION_PRESETS);
-    if (presets.length === 0 || !state) return;
-    ["preset-selector", "config-preset-select"].forEach((selectId) => {
-      const select = document.getElementById(selectId);
-      if (!select) return;
-      select.innerHTML = presets
-        .map((p) => (
-          `<option value="${p.id}" ${p.id === state.presetId ? "selected" : ""}>` +
-          `${p.destinationCountry} — ${p.visaType}` +
-          "</option>"
-        ))
-        .join("");
-      select.value = state.presetId;
-    });
-  }, [state]);
 
-  // --- syncDurationOptions ---
-  const syncDurationOptions = useCallback(() => {
-    const select = document.getElementById("config-duration");
-    if (!select || !state) return;
-    const preset = getPreset();
-    const rule = getCountryRule(preset.countryCode, preset.stayType);
-    const amounts = [];
-    const pushAmount = (days, note) => {
-      if (!Number.isInteger(days) || days < 1) return;
-      if (!amounts.some((a) => a.days === days)) amounts.push({ days, note });
-    };
-    if (rule) {
-      pushAmount(rule.allowedDays, "autorización inicial");
-      if (rule.maxDaysInWindow) pushAmount(rule.maxDaysInWindow, "tope del periodo");
-    } else {
-      pushAmount(preset.totalAllowedDays, "autorización inicial");
-    }
-    pushAmount(state.allowedDays, "actual");
-    amounts.sort((a, b) => a.days - b.days);
-    select.innerHTML = amounts.map((a) => {
-      const tag =
-        a.note === "autorización inicial"
-          ? "autorización inicial"
-          : a.note === "actual"
-          ? "actual"
-          : "tope del periodo";
-      return `<option value="${a.days}" ${a.days === state.allowedDays ? "selected" : ""}>${a.days} días (${tag})</option>`;
-    }).join("");
-  }, [state, getPreset]);
-
-  // --- updateDurationPreview ---
-  const updateDurationPreview = useCallback(() => {
-    const preview = document.getElementById("config-duration-preview");
-    const select = document.getElementById("config-duration");
-    const entryInput = document.getElementById("config-entry-date");
-    if (!preview || !select || !select.value) return;
-    const entryStr = entryInput && entryInput.value ? entryInput.value : state.entryDateStr;
-    const entry = parseDate(entryStr);
-    const days = Math.max(1, parseInt(select.value, 10) || 1);
-    const expiry = addDays(entry, days - 1);
-    preview.textContent = `El permiso vencería el ${formatDatePretty(expiry)} (la llegada cuenta como Día 1).`;
-  }, [state]);
-
-  // --- openConfigModal ---
-  const openConfigModal = useCallback(() => {
-    if (!state) return;
-    const entryInput = document.getElementById("config-entry-date");
-    const originInput = document.getElementById("config-origin");
-    const destinationInput = document.getElementById("config-destination");
-    const visaInput = document.getElementById("config-visa");
-    const modalPresetSelect = document.getElementById("config-preset-select");
-    if (entryInput) entryInput.value = state.entryDateStr;
-    syncDurationOptions();
-    updateDurationPreview();
-    if (originInput) originInput.value = state.originCountry;
-    if (destinationInput) destinationInput.value = state.destinationCountry;
-    if (visaInput) visaInput.value = state.visaType;
-    entryInput.oninput = () => updateDurationPreview();
-    const durationSelect = document.getElementById("config-duration");
-    if (durationSelect) durationSelect.onchange = () => updateDurationPreview();
-    if (modalPresetSelect) {
-      modalPresetSelect.value = state.presetId;
-      modalPresetSelect.onchange = (e) => {
-        applyPreset(e.target.value);
-        if (entryInput) entryInput.value = state.entryDateStr;
-        syncDurationOptions();
-        updateDurationPreview();
-        if (originInput) originInput.value = state.originCountry;
-        if (destinationInput) destinationInput.value = state.destinationCountry;
-        if (visaInput) visaInput.value = state.visaType;
-      };
-    }
-    setConfigModalOpen(true);
-  }, [state, syncDurationOptions, updateDurationPreview, applyPreset]);
-
-  // --- closeConfigModal ---
-  const closeConfigModal = useCallback(() => {
-    setConfigModalOpen(false);
-  }, []);
-
-  // --- handleConfigSubmit ---
-  const handleConfigSubmit = useCallback((e) => {
-    e.preventDefault();
-    if (!state) return;
-    const entryInput = document.getElementById("config-entry-date");
-    const durationSelect = document.getElementById("config-duration");
-    const originInput = document.getElementById("config-origin");
-    const destinationInput = document.getElementById("config-destination");
-    const visaInput = document.getElementById("config-visa");
-
-    const next = { ...state };
-    if (entryInput && entryInput.value) next.entryDateStr = entryInput.value;
-    if (durationSelect && durationSelect.value) {
-      next.allowedDays = Math.max(1, parseInt(durationSelect.value, 10) || 1);
-    }
-    if (originInput && originInput.value) next.originCountry = originInput.value;
-    if (destinationInput && destinationInput.value)
-      next.destinationCountry = destinationInput.value;
-    if (visaInput && visaInput.value) next.visaType = visaInput.value;
-
-    setState(next);
-    setConfigModalOpen(false);
-    commit();
-  }, [state, commit]);
 
   // --- openDayInspector ---
   const openDayInspector = useCallback((dateStr) => {
@@ -567,127 +446,36 @@ export default function App() {
       <DockWrapper appApi={appApi} />
 
       {/* Modal: Configurar viaje y fechas */}
-      <div
-        className={`modal-overlay ${configModalOpen ? "active" : ""}`}
-        id="config-modal"
-      >
-        <div className="modal-card">
-          <div className="modal-header">
-            <h3 className="text-heading-sm" style={{ fontSize: 20 }}>
-              Ajustar Fechas y Perfil de Viaje
-            </h3>
-            <button
-              className="btn btn-outline btn-sm"
-              onClick={closeConfigModal}
-              data-close-modal
-            >
-              ✕
-            </button>
-          </div>
-          <form id="form-config-trip" onSubmit={handleConfigSubmit}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-16)" }}>
-              <div className="input-group">
-                <label className="input-label" htmlFor="config-preset-select">
-                  Normativa de País de Destino:
-                </label>
-                <select
-                  id="config-preset-select"
-                  className="select"
-                  value={state?.presetId}
-                  onChange={(e) => {
-                    applyPreset(e.target.value);
-                    if (document.getElementById("config-entry-date"))
-                      document.getElementById("config-entry-date").value = state.entryDateStr;
-                    syncDurationOptions();
-                    updateDurationPreview();
-                    if (document.getElementById("config-origin"))
-                      document.getElementById("config-origin").value = state.originCountry;
-                    if (document.getElementById("config-destination"))
-                      document.getElementById("config-destination").value = state.destinationCountry;
-                    if (document.getElementById("config-visa"))
-                      document.getElementById("config-visa").value = state.visaType;
-                  }}
-                >
-                  {Object.values(MIGRATION_PRESETS).map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.destinationCountry} — {p.visaType}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--spacing-12)" }}>
-                <div className="input-group">
-                  <label className="input-label" htmlFor="config-origin">País de Origen:</label>
-                  <input
-                    type="text"
-                    id="config-origin"
-                    className="input"
-                    required
-                    defaultValue={state?.originCountry}
-                  />
-                </div>
-                <div className="input-group">
-                  <label className="input-label" htmlFor="config-destination">País de Destino:</label>
-                  <input
-                    type="text"
-                    id="config-destination"
-                    className="input"
-                    required
-                    defaultValue={state?.destinationCountry}
-                  />
-                </div>
-              </div>
-
-              <div className="input-group">
-                <label className="input-label" htmlFor="config-visa">Tipo de Estancia / Visado:</label>
-                <input
-                  type="text"
-                  id="config-visa"
-                  className="input"
-                  required
-                  defaultValue={state?.visaType}
-                />
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--spacing-12)" }}>
-                <div className="input-group">
-                  <label className="input-label" htmlFor="config-entry-date">Fecha de Salida / Ingreso:</label>
-                  <input
-                    type="date"
-                    id="config-entry-date"
-                    className="input"
-                    required
-                    defaultValue={state?.entryDateStr}
-                    onInput={updateDurationPreview}
-                  />
-                </div>
-                <div className="input-group">
-                  <label className="input-label" htmlFor="config-duration">Duración Autorizada (días):</label>
-                  <select
-                    id="config-duration"
-                    className="select"
-                    required
-                    defaultValue={state?.allowedDays}
-                    onChange={updateDurationPreview}
-                  >
-                    {/* Opciones pobladas por syncDurationOptions */}
-                  </select>
-                  <div id="config-duration-preview" style={{ marginTop: 6, fontSize: 12, color: "var(--color-mid-gray)" }} />
-                </div>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn-outline" onClick={closeConfigModal} data-close-modal>
-                Cancelar
-              </button>
-              <button type="submit" className="btn btn-primary">
-                Guardar y Recalcular
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
+      <ConfigModal
+        open={configModalOpen}
+        onClose={closeConfigModal}
+        onSubmit={(data) => {
+          setState((prev) => ({ ...prev, ...data }));
+          commit();
+        }}
+        presetId={state?.presetId}
+        onPresetChange={applyPreset}
+        entryDateStr={state?.entryDateStr}
+        onEntryDateChange={(val) =>
+          setState((prev) => ({ ...prev, entryDateStr: val }))
+        }
+        originCountry={state?.originCountry}
+        onOriginCountryChange={(val) =>
+          setState((prev) => ({ ...prev, originCountry: val }))
+        }
+        destinationCountry={state?.destinationCountry}
+        onDestinationCountryChange={(val) =>
+          setState((prev) => ({ ...prev, destinationCountry: val }))
+        }
+        visaType={state?.visaType}
+        onVisaTypeChange={(val) =>
+          setState((prev) => ({ ...prev, visaType: val }))
+        }
+        allowedDays={state?.allowedDays}
+        onAllowedDaysChange={(val) =>
+          setState((prev) => ({ ...prev, allowedDays: val }))
+        }
+      />
 
       {/* Modal: Detalle del día inspeccionado */}
       <div
