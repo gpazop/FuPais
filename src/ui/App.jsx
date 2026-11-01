@@ -310,7 +310,7 @@ export default function App() {
   }, [state, metrics, commit]);
 
   // --- renderAlert (HTML string → innerHTML) ---
-  const renderAlert = useCallback((preset, metrics, state) => {
+  const renderAlertHTML = useCallback((preset, metrics, state) => {
     if (!preset || !metrics) return null;
     let alertContent = "";
     if (metrics.isExpired) {
@@ -392,11 +392,11 @@ export default function App() {
         </div>
       `;
     }
-    return <div dangerouslySetInnerHTML={{ __html: alertContent }} />;
+    return alertContent;
   }, []);
 
-  // --- renderProcedures (HTML string + event binding) ---
-  const renderProcedures = useCallback((container, metrics, state, applyPresetFn, commitFn, showNotificationFn, formatDatePrettyFn) => {
+  // --- renderProceduresHTML (HTML string + event binding) ---
+  const renderProceduresHTML = useCallback((container, metrics, state, applyPresetFn, commitFn, showNotificationFn, formatDatePrettyFn) => {
     if (!container || !metrics) return;
     const html = metrics.resolvedProcedures.map((proc) => {
       let deadlineBadge = "";
@@ -448,7 +448,97 @@ export default function App() {
     });
   }, []);
 
-  // --- API expuesta al dock (sustituye a this.app del vanilla) ---
+  // --- Render de métricas y alertas en el DOM existente (index.html) ---
+  const renderMetricsAndAlerts = useCallback(() => {
+    if (!state || !metrics) return;
+    const preset = getPreset();
+
+    // País
+    const elFlag = document.getElementById("country-flag");
+    const elTitle = document.getElementById("country-title");
+    const elSubtitle = document.getElementById("country-subtitle");
+    if (elFlag) elFlag.textContent = preset.countryCode || "CO";
+    if (elTitle) elTitle.textContent = `${state.destinationCountry} • ${state.visaType}`;
+    if (elSubtitle) {
+      elSubtitle.textContent = `País de origen: ${state.originCountry} | Ingreso: ${formatDatePretty(metrics.entryDate)} | Vencimiento: ${formatDatePretty(metrics.expiryDate)}`;
+    }
+
+    // Portal oficial
+    const elPortal = document.getElementById("official-portal-link");
+    if (elPortal && preset.officialPortalUrl) {
+      elPortal.href = preset.officialPortalUrl;
+      elPortal.title = `Ir al portal oficial de ${preset.officialEntityName}`;
+      elPortal.style.display = "inline-flex";
+    }
+
+    // Status badge
+    const elBadge = document.getElementById("header-status-badge");
+    if (elBadge) {
+      elBadge.className = `badge ${metrics.statusBadge.type}`;
+      elBadge.innerHTML = `<span class="badge-dot"></span> ${metrics.statusBadge.label}`;
+    }
+
+    // Smart alert
+    const elAlert = document.getElementById("smart-alert-container");
+    if (elAlert) {
+      elAlert.innerHTML = renderAlertHTML(preset, metrics, state);
+    }
+
+    // Métricas
+    const elDays = document.getElementById("stat-days-abroad");
+    const elTotal = document.getElementById("stat-total-allowed");
+    const elRemaining = document.getElementById("stat-days-remaining");
+    const elExpiry = document.getElementById("stat-expiry-text");
+    const elProgress = document.getElementById("stay-progress-fill");
+    const elPercent = document.getElementById("stay-percent-text");
+    if (elDays) elDays.textContent = metrics.daysAbroad;
+    if (elTotal) elTotal.textContent = `/ ${metrics.totalPeriodDays} días autorizados`;
+    if (elRemaining) elRemaining.textContent = `${metrics.daysRemaining} días`;
+    if (elExpiry) elExpiry.textContent = `Límite actual: ${formatDatePretty(metrics.expiryDate)}`;
+    if (elProgress) {
+      elProgress.style.width = `${metrics.percentElapsed}%`;
+      if (metrics.isInsideOptimalWindow || metrics.isInsideRiskWindow || metrics.isExpired) {
+        elProgress.classList.add("fill-warning");
+      } else {
+        elProgress.classList.remove("fill-warning");
+      }
+    }
+    if (elPercent) elPercent.textContent = `${metrics.percentElapsed}% de estancia completada`;
+
+    // Trámites
+    const elProcs = document.getElementById("procedures-list-container");
+    if (elProcs) {
+      renderProceduresHTML(elProcs, metrics, state, applyPreset, commit, showNotification, formatDatePretty);
+    }
+  }, [state, metrics, getPreset, applyPreset, commit, showNotification]);
+
+  useEffect(() => {
+    renderMetricsAndAlerts();
+  }, [state, metrics, renderMetricsAndAlerts]);
+
+  // --- Calendario (montado sobre el #calendar-mount-point existente en index.html) ---
+  useEffect(() => {
+    if (!state || !metrics) return;
+    const mount = document.getElementById("calendar-mount-point");
+    if (!mount) return;
+    if (!calendarRef.current) {
+      calendarRef.current = new FuPaisCalendar(mount, (dateStr) => openDayInspector(dateStr));
+    }
+    calendarRef.current.setData(metrics, state.customEvents);
+  }, [state, metrics, openDayInspector]);
+
+  // --- Dock vanilla (montado sobre el #fupais-dock existente en index.html) ---
+  useEffect(() => {
+    if (dockRef.current) return;
+    (async () => {
+      const dock = await FuPaisDock.create(appApi);
+      dockRef.current = dock;
+      window.fuPaisDock = dock;
+      window.fuPaisApp = appApi;
+    })();
+  }, [appApi]);
+
+  // --- API expuesta al dock y al HTML estático (sustituye a this.app del vanilla) ---
   const appApi = {
     state,
     metrics,
@@ -456,247 +546,10 @@ export default function App() {
     showNotification,
     openConfigModal,
     commit,
-    getPreset
+    getPreset,
+    renderMetricsAndAlerts
   };
 
-  // --- Vista Inicio (Dashboard) ---
-  const renderInicio = () => {
-    if (!state || !metrics) return null;
-    const preset = getPreset();
-    return (
-      <section className="fupais-view active" id="view-inicio">
-        <section className="country-strip">
-          <div className="country-details">
-            <div className="badge badge-solid" id="country-flag-badge" style={{ width: 36, height: 36, borderRadius: 10, fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {preset.countryCode || "CO"}
-            </div>
-            <div>
-              <h2 className="text-subheading" id="country-title" style={{ fontSize: 16 }}>
-                {state.destinationCountry} • {state.visaType}
-              </h2>
-              <p className="text-caption" id="country-subtitle" style={{ textTransform: "none", marginTop: 2 }}>
-                País de origen: {state.originCountry} | Ingreso: {formatDatePretty(metrics.entryDate)} | Vencimiento: {formatDatePretty(metrics.expiryDate)}
-              </p>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <span className="rule-pill"><strong>Ventana Legal:</strong> 15 a 5 días previos</span>
-            <span className="rule-pill"><strong>Extensión:</strong> +90 días PTP</span>
-            {preset.officialPortalUrl && (
-              <a id="official-portal-link" href={preset.officialPortalUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm" style={{ display: "inline-flex", height: 30 }}>
-                Portal Oficial ↗
-              </a>
-            )}
-          </div>
-        </section>
-
-        <section id="smart-alert-container" style={{ marginBottom: "var(--spacing-24)" }}>
-          {renderAlert(preset, metrics, state)}
-        </section>
-
-        <section className="metrics-row">
-          <div className="card metric-card">
-            <div className="stat-block">
-              <span className="stat-label">Días Fuera de tu País</span>
-              <div className="stat-value">
-                <span id="stat-days-abroad">{metrics.daysAbroad}</span>
-                <span className="stat-value-sub" id="stat-total-allowed">/ {metrics.totalPeriodDays} días autorizados</span>
-              </div>
-            </div>
-            <div style={{ marginTop: "var(--spacing-16)" }}>
-              <div className="progress-bar-container">
-                <div className="progress-bar-fill" id="stay-progress-fill" style={{ width: `${metrics.percentElapsed}%` }}></div>
-              </div>
-              <div className="stat-footer">
-                <span id="stay-percent-text">{metrics.percentElapsed}% de estancia completada</span>
-              </div>
-            </div>
-          </div>
-          <div className="card metric-card">
-            <div className="stat-block">
-              <span className="stat-label">Días Restantes de Estancia Legal</span>
-              <div className="stat-value text-ember" style={{ fontSize: 28, lineHeight: 1.2 }}>
-                <span>{metrics.daysRemaining} días</span>
-              </div>
-            </div>
-            <div className="stat-footer">
-              <svg className="icon text-ember" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-              <span id="stat-expiry-text">Límite actual: {formatDatePretty(metrics.expiryDate)}</span>
-            </div>
-          </div>
-          <div className="card metric-card">
-            <div className="stat-block">
-              <span className="stat-label">Ventana de Prórroga PTP</span>
-              <div className="stat-value" style={{ fontSize: 28, lineHeight: 1.2 }}>
-                <span>15 a 5 Días</span>
-                <span className="stat-value-sub">previos a vencer</span>
-              </div>
-            </div>
-            <div className="stat-footer">
-              <svg className="icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
-              <span>Margen de respuesta: 3-5 días hábiles</span>
-            </div>
-          </div>
-        </section>
-
-        <main className="dashboard-grid">
-          <section className="card" style={{ display: "flex", flexDirection: "column" }}>
-            <div className="card-header">
-              <div className="card-header-inner">
-                <h2 className="card-title">Calendario de Estancia y Conteo Diario</h2>
-                <p className="text-caption" style={{ textTransform: "none" }}>
-                  Haz clic en cualquier día para ver el recuento exacto, hitos migratorios o agregar recordatorios personales.
-                </p>
-              </div>
-            </div>
-            <div id="calendar-mount-point" ref={(el) => {
-              elementsRef.current.calendarMount = el;
-              if (el && !calendarRef.current) {
-                calendarRef.current = new FuPaisCalendar(el, (dateStr) => openDayInspector(dateStr));
-                calendarRef.current.setData(metrics, state.customEvents);
-              } else if (calendarRef.current) {
-                calendarRef.current.setData(metrics, state.customEvents);
-              }
-            }}>
-              {/* Calendar rendered via calendar.js */}
-            </div>
-          </section>
-
-          <aside style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-24)" }}>
-            <div className="card">
-              <div className="card-header">
-                <div className="card-header-inner">
-                  <h2 className="card-title">Trámites y Obligaciones</h2>
-                  <p className="text-caption" style={{ textTransform: "none" }}>Hitos oficiales según tu calidad migratoria</p>
-                </div>
-              </div>
-              <div id="procedures-list-container" className="procedure-list" ref={(el) => {
-                elementsRef.current.procedureList = el;
-                renderProcedures(el, metrics, state, applyPreset, commit, showNotification, formatDatePretty);
-              }}>
-                {/* Rendered by renderProcedures */}
-              </div>
-              <div style={{ marginTop: 12, fontSize: 11, color: "var(--color-mid-gray)", lineHeight: 1.35, padding: "8px 10px", backgroundColor: "var(--surface-sidebar)", borderRadius: 8 }}>
-                ✦ <strong>Auto-extensión:</strong> Marcar la aprobación de la prórroga actualizará automáticamente tu fecha límite añadiendo los +90 días legales.
-              </div>
-            </div>
-          </aside>
-        </main>
-      </section>
-    );
-  };
-
-  // --- Vista Mapa (delegada al dock vanilla) ---
-  const renderMapa = () => (
-    <section className="fupais-view" id="view-mapa">
-      <div className="map-view-container">
-        <div id="dock-map-mount" ref={(el) => {
-          elementsRef.current.dockMapMount = el;
-        }} />
-      </div>
-    </section>
-  );
-
-  // --- Otras vistas (placeholders, reutilizan HTML estático del dock) ---
-  const renderArchivos = () => <section className="fupais-view" id="view-archivos" />;
-  const renderPerfil = () => <section className="fupais-view" id="view-perfil" />;
-  const renderConfiguracion = () => <section className="fupais-view" id="view-configuracion" />;
-
-  // --- Dock vanilla (se monta como clase imperativa) ---
-  useEffect(() => {
-    if (!elementsRef.current.dockMapMount || dockRef.current) return;
-    (async () => {
-      const dock = await FuPaisDock.create(appApi);
-      dockRef.current = dock;
-      window.fuPaisDock = dock;
-    })();
-  }, [elementsRef.current.dockMapMount, appApi]);
-
-  // --- Modales ---
-  const renderConfigModal = () => {
-    // El HTML del modal está en index.html; React solo controla la clase .active via openConfigModal
-    return null;
-  };
-
-  return (
-    <div className="app-container">
-      <header className="header-bar">
-        <div className="brand-section">
-          <div className="brand-logo" aria-label="Logo FuPais">Fu</div>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <h1 className="brand-title">FuPais</h1>
-              <span className="badge badge-outline">v2.0</span>
-            </div>
-            <p className="brand-subtitle">Gestión de estancia en el exterior, prórrogas y alertas legales oficiales</p>
-          </div>
-        </div>
-        <div className="header-actions">
-          {state && (
-            <>
-              <select id="preset-selector" className="select" style={{ maxWidth: 320, fontSize: 13 }} onChange={(e) => applyPreset(e.target.value)} value={state.presetId} title="Seleccionar perfil de normativa migratoria">
-                {Object.values(MIGRATION_PRESETS).map((p) => (
-                  <option key={p.id} value={p.id}>{p.destinationCountry} — {p.visaType}</option>
-                ))}
-              </select>
-              <div id="header-status-badge" className="badge badge-solid">
-                <span className="badge-dot"></span> Verificando...
-              </div>
-              <button id="btn-open-config" className="btn btn-outline btn-sm" onClick={openConfigModal}>
-                Ajustar Fechas
-              </button>
-            </>
-          )}
-          {!state && <div>Cargando...</div>}
-        </div>
-      </header>
-
-      {state ? renderInicio() : null}
-      {!state ? null : null}
-
-      {renderMapa()}
-      {renderArchivos()}
-      {renderPerfil()}
-      {renderConfiguracion()}
-
-      <div className="modal-overlay" id="config-modal">
-        <div className="modal-card">
-          <div className="modal-header">
-            <h3 className="text-heading-sm" style={{ fontSize: 20 }}>Ajustar Fechas y Perfil de Viaje</h3>
-            <button className="btn btn-outline btn-sm" onClick={() => {
-              const m = document.getElementById("config-modal");
-              if (m) m.classList.remove("active");
-            }}>✕</button>
-          </div>
-          <form id="form-config-trip">
-            {/* El contenido del formulario está en index.html; React controla la apertura */}
-          </form>
-        </div>
-      </div>
-
-      <div className="modal-overlay" id="day-modal">
-        <div className="modal-card">
-          <div className="modal-header">
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              <span className="text-caption">Inspección de Fecha</span>
-              <h3 className="text-heading-sm" id="day-modal-title" style={{ fontSize: 20 }}>Detalle del Día</h3>
-            </div>
-            <button className="btn btn-outline btn-sm" onClick={() => {
-              const m = document.getElementById("day-modal");
-              if (m) m.classList.remove("active");
-            }}>✕</button>
-          </div>
-          <div id="day-modal-body">
-            {/* Injected dynamically */}
-          </div>
-          <div className="modal-footer">
-            <button className="btn btn-outline" onClick={() => {
-              const m = document.getElementById("day-modal");
-              if (m) m.classList.remove("active");
-            }}>Cerrar</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  // React solo provee el estado y la lógica; el HTML estructural vive en index.html.
+  return <div id="app-root" />;
 }
