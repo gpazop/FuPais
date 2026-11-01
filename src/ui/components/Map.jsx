@@ -1,20 +1,18 @@
 // ========================================================
-// FUPAIS — Map (React Leaflet)
+// FUPAIS — Map (React Leaflet v5)
 // Mapa migratorio con pines de países publicados y rutas
 // de vuelo. Reemplaza la lógica vanilla de dock/map.js.
 // ========================================================
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   MapContainer,
   TileLayer,
   Marker,
   Popup,
   Polyline,
-  Circle,
-  useMap
+  Circle
 } from "react-leaflet";
-import { useEffect } from "react";
 import L from "leaflet";
 import { MIGRATION_PRESETS } from "../../data/migrationPresets.js";
 import { PRESET_COORDS } from "../../data/presetCoords.js";
@@ -48,6 +46,7 @@ function countryPin(flag, name) {
 
 export default function Map({ appApi, layerKey = "streets" }) {
   const [userPosition, setUserPosition] = useState([4.7110, -74.0721]);
+  const mapRef = useRef(null);
 
   const tileLayers = {
     streets: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
@@ -55,7 +54,17 @@ export default function Map({ appApi, layerKey = "streets" }) {
     terrain: "https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}"
   };
 
-  const mapInstance = useMap();
+  const handleMapCreate = useCallback((map) => {
+    mapRef.current = map;
+  }, []);
+
+  const handleMarkerClick = useCallback((coords, presetId) => {
+    if (!appApi?.applyPreset) return;
+    appApi.applyPreset(presetId);
+    if (mapRef.current) {
+      mapRef.current.flyTo(coords, 6, { duration: 1.2 });
+    }
+  }, [appApi]);
 
   return (
     <MapContainer
@@ -63,6 +72,7 @@ export default function Map({ appApi, layerKey = "streets" }) {
       zoom={6}
       style={{ height: "100%", width: "100%" }}
       zoomControl={true}
+      onCreate={handleMapCreate}
     >
       <TileLayer
         url={tileLayers[layerKey]}
@@ -76,9 +86,7 @@ export default function Map({ appApi, layerKey = "streets" }) {
         icon={radarIcon}
         draggable
         title="Tu Ubicación (Arrastra para mover manualmente)"
-      >
-        {/* Sin popup; se usa el HUD del dock para telemetría */}
-      </Marker>
+      />
 
       {/* Círculo de cobertura radar */}
       <Circle
@@ -101,14 +109,7 @@ export default function Map({ appApi, layerKey = "streets" }) {
             position={coords}
             icon={countryPin(p.flag, p.destinationCountry)}
             title={p.destinationCountry}
-            onClick={() => {
-              if (appApi?.applyPreset) {
-                appApi.applyPreset(p.id);
-                if (mapInstance) {
-                  mapInstance.flyTo(coords, 6, { duration: 1.2 });
-                }
-              }
-            }}
+            onClick={() => handleMarkerClick(coords, p.id)}
           >
             <Popup>
               <div style="padding: 4px;">
