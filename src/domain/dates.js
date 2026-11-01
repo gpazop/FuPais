@@ -28,6 +28,27 @@ export function formatDateSpanish(dateStr) {
   return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+/** Date → '17 jul 2026' (formato corto en español). */
+export function formatDatePretty(date) {
+  return new Intl.DateTimeFormat('es-ES', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  }).format(date);
+}
+
+/** Date + N días → nuevo Date (no muta el original). */
+export function addDays(date, days) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + Number(days));
+  return result;
+}
+
+/** Días naturales entre dos Dates (dateA - dateB). Negativo si dateA es anterior. */
+export function differenceInDays(dateA, dateB) {
+  return getDaysDifference(dateB, dateA);
+}
+
 /** Días naturales entre dos Dates (date2 - date1). Ambos a medianoche local. */
 export function getDaysDifference(date1, date2) {
   const msPerDay = 1000 * 60 * 60 * 24;
