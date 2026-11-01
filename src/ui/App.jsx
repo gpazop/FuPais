@@ -153,6 +153,11 @@ export default function App() {
     setConfigModalOpen(true);
   }, []);
 
+  // --- closeConfigModal ---
+  const closeConfigModal = useCallback(() => {
+    setConfigModalOpen(false);
+  }, []);
+
   // --- openDayInspector ---
   const openDayInspector = useCallback((dateStr) => {
     if (!state || !metrics) return;
