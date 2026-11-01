@@ -269,8 +269,9 @@ export default function App() {
 
       {state ? (
         <>
-          <section className="fupais-view active" id="view-inicio">
-            <section className="country-strip">
+          {metrics ? (
+            <section className="fupais-view active" id="view-inicio">
+              <section className="country-strip">
               <div className="country-details">
                 <div
                   className="badge badge-solid"
@@ -365,6 +366,7 @@ export default function App() {
               </aside>
             </main>
           </section>
+          ) : null}
 
           <section className="fupais-view" id="view-mapa">
             <div className="map-view-container">
