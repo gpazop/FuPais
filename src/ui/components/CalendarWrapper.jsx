@@ -15,7 +15,7 @@ export default function CalendarWrapper({ metrics, customEvents, onDateSelect })
     const mount = mountRef.current || document.getElementById("calendar-mount-point");
     if (!mount) return;
 
-    if (!mountRef.current) {
+    if (!mount.calendarInstance) {
       mountRef.current = mount;
       mount.calendarInstance = new FuPaisCalendar(mount, (dateStr) => {
         onDateSelect?.(dateStr);
