@@ -3,6 +3,8 @@
 // ========================================================
 
 import { geocoding } from "../../services/geocoding.js";
+import { MIGRATION_PRESETS } from "../../data/migrationPresets.js";
+import { PRESET_COORDS } from "../../data/presetCoords.js";
 
 export class MapMethods {
   // ========================================================
@@ -42,7 +44,7 @@ export class MapMethods {
       });
     });
 
-    // Fast simulation buttons (Bogotá, Lima, Madrid, CDMX, París)
+    // Fast simulation buttons (Bogotá, Lima — países publicados)
     const btnSimBogota = document.getElementById("btn-sim-bogota");
     if (btnSimBogota) {
       btnSimBogota.addEventListener("click", () => {
@@ -57,51 +59,26 @@ export class MapMethods {
       });
     }
 
-    const btnSimMadrid = document.getElementById("btn-sim-madrid");
-    if (btnSimMadrid) {
-      btnSimMadrid.addEventListener("click", () => {
-        this.setSimulationLocation(40.4168, -3.7038, "Madrid", "España");
-      });
-    }
-
-    const btnSimCdmx = document.getElementById("btn-sim-cdmx");
-    if (btnSimCdmx) {
-      btnSimCdmx.addEventListener("click", () => {
-        this.setSimulationLocation(19.4326, -99.1332, "Ciudad de México", "México");
-      });
-    }
-
-    const btnSimParis = document.getElementById("btn-sim-paris");
-    if (btnSimParis) {
-      btnSimParis.addEventListener("click", () => {
-        this.setSimulationLocation(48.8566, 2.3522, "París", "Espacio Schengen (Francia)");
-      });
-    }
-
-    // Country catalog cards switch in map view
-    document.querySelectorAll("[data-select-preset]").forEach(card => {
-      card.addEventListener("click", () => {
+    // Country catalog cards switch in map view (event delegation covers
+    // dynamically rendered cards from MIGRATION_PRESETS).
+    const cardsGrid = document.querySelector(".countries-cards-grid");
+    if (cardsGrid) {
+      cardsGrid.addEventListener("click", (e) => {
+        const card = e.target.closest("[data-select-preset]");
+        if (!card || !this.app) return;
         const presetId = card.getAttribute("data-select-preset");
-        if (presetId && this.app) {
-          this.playClickSound(900, "sine", 0.05);
-          this.app.applyPreset(presetId);
-          this.app.showNotification(`Destino cambiado a: ${card.querySelector(".country-name")?.textContent || presetId}`);
-          this.renderMapTelemetry();
+        this.playClickSound(900, "sine", 0.05);
+        this.app.applyPreset(presetId);
+        this.app.showNotification(`Destino cambiado a: ${card.querySelector(".country-name")?.textContent || presetId}`);
+        this.renderMapTelemetry();
 
-          // Fly map to selected country preset
-          const coordsByPreset = {
-            colombia_intercambio: [4.7110, -74.0721],
-            colombia_turista: [4.7110, -74.0721],
-            espana_estudiante: [40.4168, -3.7038],
-            schengen_turista: [48.8566, 2.3522],
-            mexico_canje: [19.4326, -99.1332]
-          };
-          if (coordsByPreset[presetId] && this.leafletMap) {
-            this.leafletMap.flyTo(coordsByPreset[presetId], 6, { duration: 1.2 });
-          }
+        // Fly map to selected country preset
+        const coords = PRESET_COORDS[presetId];
+        if (coords && this.leafletMap) {
+          this.leafletMap.flyTo(coords, 6, { duration: 1.2 });
         }
       });
-    });
+    }
   }
 
   ensureMapInitialized() {
@@ -204,19 +181,18 @@ export class MapMethods {
   }
 
   addCountryPinsToMap() {
-    const countries = [
-      { id: "colombia_intercambio", name: "Colombia", code: "CO", flag: "🇨🇴", coords: [4.7110, -74.0721], role: "Destino Activo (PIP-2)", allowed: "90 + 90 días" },
-      { id: "peru_origen", name: "Perú", code: "PE", flag: "🇵🇪", coords: [-12.0464, -77.0428], role: "País de Origen", allowed: "Residencia Nacional" },
-      { id: "espana_estudiante", name: "España", code: "ES", flag: "🇪🇸", coords: [40.4168, -3.7038], role: "Estancia Estudios (TIE)", allowed: "365 días" },
-      { id: "schengen_turista", name: "Espacio Schengen", code: "EU", flag: "🇪🇺", coords: [48.8566, 2.3522], role: "Turista Regla 90/180", allowed: "Máx 90/180 días" },
-      { id: "mexico_canje", name: "México", code: "MX", flag: "🇲🇽", coords: [19.4326, -99.1332], role: "Canje Residente INM", allowed: "Plazo 30 días" }
-    ];
+    // Pines generados desde el registro publicado (MIGRATION_PRESETS) +
+    // coordenadas de PRESET_COORDS. Sin claims legales hardcodeados, sin
+    // peru_origen (no es un preset publicado) y sin onclick inline
+    // (un nombre con apóstrofo rompería el HTML).
+    Object.values(MIGRATION_PRESETS).forEach((p) => {
+      const coords = PRESET_COORDS[p.id];
+      if (!coords) return; // omite el pin sin romper si no hay coordenada
 
-    countries.forEach(c => {
       const pinHtml = `
         <div style="background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.3); color: #fff; padding: 4px 8px; border-radius: 99px; font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); transform: translate(-50%, -50%); cursor: pointer; white-space: nowrap;">
-          <span>${c.flag}</span>
-          <span>${c.name}</span>
+          <span>${p.flag}</span>
+          <span>${p.destinationCountry}</span>
         </div>
       `;
       const pinIcon = L.divIcon({
@@ -225,21 +201,26 @@ export class MapMethods {
         iconSize: [80, 24]
       });
 
-      const m = L.marker(c.coords, { icon: pinIcon, title: c.name }).addTo(this.leafletMap);
+      const m = L.marker(coords, { icon: pinIcon, title: p.destinationCountry }).addTo(this.leafletMap);
+
+      // click en el marker → activar preset (sin onclick inline)
+      m.on("click", () => {
+        if (!this.app) return;
+        this.playClickSound(900, "sine", 0.05);
+        this.app.applyPreset(p.id);
+        this.app.showNotification(`Destino cambiado a: ${p.destinationCountry}`);
+        this.renderMapTelemetry();
+      });
 
       const popupContent = `
         <div style="padding: 4px;">
           <div style="display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 700;">
-            <span>${c.flag}</span>
-            <span>${c.name}</span>
+            <span>${p.flag}</span>
+            <span>${p.destinationCountry}</span>
           </div>
-          <div style="font-size: 12px; color: #0284c7; font-weight: 600; margin-top: 2px;">${c.role}</div>
-          <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Límite legal: <strong>${c.allowed}</strong></div>
-          ${c.id !== "peru_origen" ? `
-            <button class="btn btn-primary btn-sm" onclick="window.fuPaisApp.applyPreset('${c.id}'); window.fuPaisApp.showNotification('Destino cambiado a ${c.name}');" style="width: 100%; margin-top: 8px; height: 26px; font-size: 11px;">
-              ✈️ Activar este país
-            </button>
-          ` : ''}
+          <div style="font-size: 12px; color: #0284c7; font-weight: 600; margin-top: 2px;">${p.visaType}</div>
+          <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Límite legal: <strong>${p.totalAllowedDays} días</strong></div>
+          <div style="font-size: 11px; color: #64748b; margin-top: 4px;">${p.legal.summary}</div>
         </div>
       `;
       m.bindPopup(popupContent);
@@ -247,11 +228,10 @@ export class MapMethods {
   }
 
   addFlightRoutesToMap() {
-    // Geodesic route polylines from Peru to destinations
+    // Geodesic route polylines — solo rutas entre países publicados
+    // (Lima -> Bogotá).
     const routes = [
-      { from: [-12.0464, -77.0428], to: [4.7110, -74.0721], color: "#0ea5e9" }, // Lima -> Bogotá
-      { from: [4.7110, -74.0721], to: [40.4168, -3.7038], color: "#f59e0b" },  // Bogotá -> Madrid
-      { from: [4.7110, -74.0721], to: [19.4326, -99.1332], color: "#10b981" }  // Bogotá -> CDMX
+      { from: [-12.0464, -77.0428], to: [4.7110, -74.0721], color: "#0ea5e9" } // Lima -> Bogotá
     ];
 
     routes.forEach(r => {

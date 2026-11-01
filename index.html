@@ -291,9 +291,6 @@
               <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                 <button id="btn-sim-bogota" class="btn btn-outline btn-sm" style="flex: 1;">🇨🇴 Bogotá</button>
                 <button id="btn-sim-lima" class="btn btn-outline btn-sm" style="flex: 1;">🇵🇪 Lima</button>
-                <button id="btn-sim-madrid" class="btn btn-outline btn-sm" style="flex: 1;">🇪🇸 Madrid</button>
-                <button id="btn-sim-cdmx" class="btn btn-outline btn-sm" style="flex: 1;">🇲🇽 CDMX</button>
-                <button id="btn-sim-paris" class="btn btn-outline btn-sm" style="flex: 1;">🇪🇺 París</button>
               </div>
             </div>
           </div>
@@ -307,96 +304,8 @@
             Selecciona cualquier país para cargar de inmediato sus leyes, tiempos de prórroga, requisitos oficiales y calculadoras.
           </p>
 
-          <div class="countries-cards-grid">
-            <!-- Colombia Intercambio -->
-            <div class="country-interactive-card" data-select-preset="colombia_intercambio">
-              <div>
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                  <span style="font-size: 28px;">🇨🇴</span>
-                  <span class="badge badge-solid">Activo</span>
-                </div>
-                <h4 class="country-name" style="font-weight: 600; font-size: 15px; margin-top: 8px;">Colombia</h4>
-                <p class="text-caption" style="text-transform: none; margin-top: 2px;">Estudiante Intercambio (PIP-2)</p>
-                <div style="font-size: 12px; color: var(--color-ink-soft); margin-top: 8px; line-height: 1.4;">
-                  90 días iniciales + 90 días con prórroga PTP. Radicación obligatoria entre 15 y 5 días antes.
-                </div>
-              </div>
-              <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 8px;">
-                Cargar este Destino ↗
-              </button>
-            </div>
-
-            <!-- Colombia Turista -->
-            <div class="country-interactive-card" data-select-preset="colombia_turista">
-              <div>
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                  <span style="font-size: 28px;">🇨🇴</span>
-                  <span class="badge badge-outline">Turismo</span>
-                </div>
-                <h4 class="country-name" style="font-weight: 600; font-size: 15px; margin-top: 8px;">Colombia</h4>
-                <p class="text-caption" style="text-transform: none; margin-top: 2px;">Turista / Visitante (PIP-5)</p>
-                <div style="font-size: 12px; color: var(--color-ink-soft); margin-top: 8px; line-height: 1.4;">
-                  Hasta 180 días por año calendario. Requiere prórroga PTP vía FUT con pago de tasa.
-                </div>
-              </div>
-              <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 8px;">
-                Cargar este Destino ↗
-              </button>
-            </div>
-
-            <!-- España Estudiante -->
-            <div class="country-interactive-card" data-select-preset="espana_estudiante">
-              <div>
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                  <span style="font-size: 28px;">🇪🇸</span>
-                  <span class="badge badge-outline">Estudios</span>
-                </div>
-                <h4 class="country-name" style="font-weight: 600; font-size: 15px; margin-top: 8px;">España</h4>
-                <p class="text-caption" style="text-transform: none; margin-top: 2px;">Estancia de Estudios (TIE / MERCURIO)</p>
-                <div style="font-size: 12px; color: var(--color-ink-soft); margin-top: 8px; line-height: 1.4;">
-                  365 días de validez. Prórroga telemática 60 días antes del vencimiento en plataforma MERCURIO.
-                </div>
-              </div>
-              <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 8px;">
-                Cargar este Destino ↗
-              </button>
-            </div>
-
-            <!-- Espacio Schengen -->
-            <div class="country-interactive-card" data-select-preset="schengen_turista">
-              <div>
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                  <span style="font-size: 28px;">🇪🇺</span>
-                  <span class="badge badge-outline">Regla 90/180</span>
-                </div>
-                <h4 class="country-name" style="font-weight: 600; font-size: 15px; margin-top: 8px;">Espacio Schengen</h4>
-                <p class="text-caption" style="text-transform: none; margin-top: 2px;">Turista sin visado (29 países europeos)</p>
-                <div style="font-size: 12px; color: var(--color-ink-soft); margin-top: 8px; line-height: 1.4;">
-                  Máximo 90 días en cualquier ventana móvil de 180 días. Plazo fatal sin prórrogas ordinarias.
-                </div>
-              </div>
-              <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 8px;">
-                Cargar este Destino ↗
-              </button>
-            </div>
-
-            <!-- México Canje INM -->
-            <div class="country-interactive-card" data-select-preset="mexico_canje">
-              <div>
-                <div style="display: flex; align-items: center; justify-content: space-between;">
-                  <span style="font-size: 28px;">🇲🇽</span>
-                  <span class="badge badge-outline">Residencia</span>
-                </div>
-                <h4 class="country-name" style="font-weight: 600; font-size: 15px; margin-top: 8px;">México</h4>
-                <p class="text-caption" style="text-transform: none; margin-top: 2px;">Canje Residencia Estudiante (INM)</p>
-                <div style="font-size: 12px; color: var(--color-ink-soft); margin-top: 8px; line-height: 1.4;">
-                  Plazo fatal e improrrogable de 30 días calendario tras aterrizar para tramitar tarjeta física ante el INM.
-                </div>
-              </div>
-              <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 8px;">
-                Cargar este Destino ↗
-              </button>
-            </div>
+          <div class="countries-cards-grid" id="countries-cards-grid">
+            <!-- Tarjetas renderizadas dinámicamente desde MIGRATION_PRESETS (ver src/ui/app.js) -->
           </div>
         </div>
       </div>

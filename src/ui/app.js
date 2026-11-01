@@ -4,6 +4,7 @@
 // ========================================================
 
 import { MIGRATION_PRESETS } from "../data/migrationPresets.js";
+import { renderCountryCards } from "../components/countryCards.js";
 import { getCountryRule } from "../data/presets.js";
 import { buildDashboard } from "../domain/dashboard.js";
 import {
@@ -86,6 +87,11 @@ class FuPaisApp {
     // Modals
     this.configModal = document.getElementById("config-modal");
     this.dayModal = document.getElementById("day-modal");
+
+    // Renderiza el catálogo de países a partir del registro publicado
+    // (antes de crear el dock, para que las tarjetas existan en el DOM
+    // cuando bindMapEvents haga delegación sobre .countries-cards-grid).
+    renderCountryCards();
   }
 
   initCalendar() {
