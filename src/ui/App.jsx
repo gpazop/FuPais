@@ -32,6 +32,7 @@ import MetricCard from "./components/MetricCard.jsx";
 import CalendarWrapper from "./components/CalendarWrapper.jsx";
 import ProceduresList from "./components/ProceduresList.jsx";
 import CountryCards from "./components/CountryCards.jsx";
+import Map from "./components/Map.jsx";
 import DockWrapper from "./components/DockWrapper.jsx";
 
 export default function App() {
@@ -552,6 +553,7 @@ export default function App() {
                   </Badge>
                 </div>
               </div>
+              <Map appApi={appApi} />
               <CountryCards onSelectPreset={applyPreset} />
             </div>
           </section>
