@@ -6,7 +6,6 @@
 // mediante <select>, y announcement de cambio.
 // ========================================================
 
-import { useEffect } from "react";
 import { MIGRATION_PRESETS } from "../../data/migrationPresets.js";
 
 export default function PresetSelector({
@@ -15,13 +14,6 @@ export default function PresetSelector({
   label = "Normativa de país de destino",
   className = ""
 }) {
-  useEffect(() => {
-    const select = document.getElementById("preset-selector");
-    if (select && select.value !== value) {
-      select.value = value;
-    }
-  }, [value]);
-
   return (
     <div className={`preset-selector-wrapper ${className}`}>
       <label htmlFor="preset-selector" className="input-label">

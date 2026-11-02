@@ -5,148 +5,154 @@
 // Los componentes UI viven en src/ui/components/.
 // ========================================================
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import {
-  loadState,
-  saveState,
-  subscribe,
-  notify
-} from "../state/store.js";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { MIGRATION_PRESETS } from "../data/migrationPresets.js";
-import { buildDashboard } from "../domain/dashboard.js";
 import {
   formatDateISO,
   formatDatePretty,
   parseDate,
-  addDays,
-  differenceInDays
+  addDays
 } from "../domain/dates.js";
-import { FuPaisDock } from "../components/dock.js";
+import useToday from "./hooks/useToday.js";
+import useDashboardMetrics from "./hooks/useDashboardMetrics.js";
+import usePersistedState from "./hooks/usePersistedState.js";
 
 // Componentes React
 import Badge from "./components/Badge.jsx";
 import Header from "./components/Header.jsx";
 import SmartAlert from "./components/SmartAlert.jsx";
 import MetricCard from "./components/MetricCard.jsx";
-import CalendarWrapper from "./components/CalendarWrapper.jsx";
+import Calendar from "./components/Calendar.jsx";
+import Toasts from "./components/Toast.jsx";
+import useToasts from "./hooks/useToasts.js";
+import Vault from "./components/Vault.jsx";
+import ProfileView from "./components/ProfileView.jsx";
+import SettingsPanel from "./components/SettingsPanel.jsx";
+import useVaultFiles from "./hooks/useVaultFiles.js";
+import useDockAudio from "./hooks/useDockAudio.js";
 import ProceduresList from "./components/ProceduresList.jsx";
 import CountryCards from "./components/CountryCards.jsx";
-import Map from "./components/Map.jsx";
+import Map from "./components/map/Map.jsx";
+import GpsHud from "./components/map/GpsHud.jsx";
+import MapSearch from "./components/map/MapSearch.jsx";
+import MapLayerSwitcher from "./components/map/MapLayerSwitcher.jsx";
+import useGeoTracking from "./hooks/useGeoTracking.js";
 import ConfigModal from "./components/ConfigModal.jsx";
 import DayModal from "./components/DayModal.jsx";
-import DockWrapper from "./components/DockWrapper.jsx";
+import Dock from "./components/dock/Dock.jsx";
+import useDockSettings from "./hooks/useDockSettings.js";
 
 export default function App() {
-  // --- Estado local (refleja this.state del vanilla) ---
-  const [state, setState] = useState(null);
-  const [metrics, setMetrics] = useState(null);
+  // --- Estado persistente: hydrate + guardado automático (usePersistedState) ---
+  // Elimina el patrón handler→setState→commit() que persistía el estado
+  // ANTERIOR por closure stale (el último cambio se perdía al recargar):
+  // ahora cada estado committed se persiste una sola vez, DESPUÉS del
+  // render, vía useEffect.
+  const { state, setState } = usePersistedState();
+
+  // --- "Hoy" reactivo: clave ISO local, invalidada a medianoche ---
+  const todayKey = useToday();
+
+  // --- UI state ---
   const [configModalOpen, setConfigModalOpen] = useState(false);
   const [dayModalOpen, setDayModalOpen] = useState(false);
   const [inspectedDateStr, setInspectedDateStr] = useState(null);
   const [inspectedDate, setInspectedDate] = useState(null);
 
-  // --- Refs para instancias imperativas vanilla ---
-  const dockRef = useRef(null);
-  const calendarRef = useRef(null);
+  // --- Overlays controladas del dock (spotlight Cmd+K / drawer Cmd+M) ---
+  const [spotlightOpen, setSpotlightOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // --- store subscription ---
-  useEffect(() => {
-    const unsubscribe = subscribe(() => {
-      setState((prev) => ({ ...prev }));
-    });
-    return unsubscribe;
+  // --- Preferencias del dock: hidratadas de la clave legacy (Sprint 2) ---
+  const { settings: dockSettings, updateSettings: updateDockSettings } =
+    useDockSettings();
+  const activeTab = dockSettings.activeTab || "inicio";
+
+  // --- Bóveda de documentos (vista Archivos) + sonidos de UI ---
+  // Reutiliza useDockAudio respetando el ajuste soundEnabled del dock.
+  const vault = useVaultFiles();
+  const playUiSound = useDockAudio(dockSettings.soundEnabled);
+
+  // --- getPreset (puro → identidad estable) ---
+  const getPreset = useCallback((presetId) => {
+    return MIGRATION_PRESETS[presetId] || MIGRATION_PRESETS.colombia_intercambio;
   }, []);
 
-  // --- Boot: cargar estado persistido ---
-  useEffect(() => {
-    (async () => {
-      const persisted = await loadState();
-      setState(persisted);
-    })();
-  }, []);
+  // --- Preset activo: memo por presetId (no por el objeto state completo) ---
+  const preset = useMemo(
+    () => (state?.presetId ? getPreset(state.presetId) : null),
+    [state?.presetId, getPreset]
+  );
 
-  // --- getPreset ---
-  const getPreset = useCallback(() => {
-    if (!state) return MIGRATION_PRESETS.colombia_intercambio;
-    return MIGRATION_PRESETS[state.presetId] || MIGRATION_PRESETS.colombia_intercambio;
-  }, [state]);
-
-  // --- recalculate ---
-  const recalculate = useCallback(() => {
-    if (!state) return;
-    const preset = getPreset();
-    const tasks = preset.procedures.map((proc) => ({
+  // --- Trámites del preset con su estado done (identidad estable) ---
+  const tasks = useMemo(() => {
+    if (!preset || !state) return [];
+    return preset.procedures.map((proc) => ({
       ...proc,
       done: state.completedProcedures[proc.id] === true
     }));
-    const m = buildDashboard({
-      profile: {
-        entryDateStr: state.entryDateStr,
-        allowedDays: state.allowedDays,
-        countryCode: preset.countryCode,
-        ruleKey: preset.ruleKey
-      },
-      tasks,
-      today: new Date()
-    });
-    setMetrics(m);
-  }, [state, getPreset]);
+  }, [preset, state?.completedProcedures]);
 
-  useEffect(() => {
-    recalculate();
-  }, [state, recalculate]);
+  // --- Métricas: motor puro `buildDashboard` conectado por memoización ---
+  // Recomputa SOLO si cambia una entrada primitiva del perfil, la
+  // identidad de `tasks` o el día (todayKey). Una mutación que no toca
+  // el perfil (p. ej. un evento personalizado) reutiliza el objeto
+  // `metrics` previo → consumidores memoizados hacen early-return.
+  const metrics = useDashboardMetrics({
+    entryDateStr: state?.entryDateStr,
+    allowedDays: state?.allowedDays,
+    countryCode: preset?.countryCode,
+    ruleKey: preset?.ruleKey,
+    tasks,
+    todayKey
+  });
 
-  // --- commit (notifica al store y persiste) ---
-  const commit = useCallback(() => {
-    if (!state) return;
-    notify(state);
-    saveState(state);
-  }, [state]);
+  // --- Refs "latest" para guards de callbacks estables ---
+  // Sustituye al appApi de Sprint 1 (ya no hay consumidores vanilla):
+  // permite que openDayInspector / handleProcedureToggle mantengan
+  // identidad estable leyendo el estado committed sin closures obsoletas.
+  const latestRef = useRef({});
+  latestRef.current = { state, metrics };
 
-  // --- showNotification (toast DOM) ---
-  const showNotification = useCallback((msg) => {
-    const existing = document.getElementById("fupais-toast");
-    if (existing) existing.remove();
-    const toast = document.createElement("div");
-    toast.id = "fupais-toast";
-    toast.className = "card card-sm";
-    toast.style.cssText = `
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      z-index: 2000;
-      background: var(--color-ink);
-      color: #fafafa;
-      box-shadow: var(--shadow-floating);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 13px;
-      padding: 12px 18px;
-      animation: modalIn 0.25s ease;
-    `;
-    toast.innerHTML = `<span>✓</span><span>${msg}</span>`;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 4000);
-  }, []);
+  // (commit eliminado en Sprint 1: la persistencia es automática en
+  // usePersistedState. Sprint 2 retiró el appApi vanilla junto con
+  // FuPaisDock; los consumidores actuales usan callbacks directos.)
 
-  // --- applyPreset ---
+  // --- Notificaciones (toasts React, Sprint 4) ---
+  // Reemplaza el toast DOM imperativo (getElementById + innerHTML):
+  // ahora es estado declarativo con auto-descarte y cierre manual.
+  const { toasts, notify, dismiss } = useToasts();
+
+  // --- Radar migratorio: capa activa, vuelos imperativos y tracking (Sprint 3) ---
+  const [mapLayer, setMapLayer] = useState("streets");
+  const [flyRequest, setFlyRequest] = useState(null);
+
+  const geo = useGeoTracking({
+    destinationCountry: state?.destinationCountry,
+    originCountry: state?.originCountry,
+    onNotify: notify
+  });
+
+  // --- applyPreset (setState funcional → identidad estable) ---
   const applyPreset = useCallback((presetId) => {
-    const preset = MIGRATION_PRESETS[presetId];
-    if (!preset || !state) return;
-    const today = new Date();
-    const entryDate = addDays(today, -(preset.defaultStayDays ?? 0));
-    setState({
-      ...state,
-      presetId,
-      destinationCountry: preset.destinationCountry,
-      visaType: preset.visaType,
-      originCountry: preset.originCountry ?? state.originCountry,
-      entryDateStr: formatDateISO(entryDate),
-      allowedDays: preset.totalAllowedDays,
-      completedProcedures: {}
+    const presetData = MIGRATION_PRESETS[presetId];
+    if (!presetData) return;
+    setState((prev) => {
+      if (!prev) return prev;
+      const today = new Date();
+      const entryDate = addDays(today, -(presetData.defaultStayDays ?? 0));
+      return {
+        ...prev,
+        presetId,
+        destinationCountry: presetData.destinationCountry,
+        visaType: presetData.visaType,
+        originCountry: presetData.originCountry ?? prev.originCountry,
+        entryDateStr: formatDateISO(entryDate),
+        allowedDays: presetData.totalAllowedDays,
+        completedProcedures: {}
+      };
     });
-  }, [state]);
+  }, [setState]);
 
   // --- openConfigModal ---
   const openConfigModal = useCallback(() => {
@@ -158,21 +164,21 @@ export default function App() {
     setConfigModalOpen(false);
   }, []);
 
-  // --- openDayInspector ---
+  // --- openDayInspector (estable: guarda vía latestRef, sin closures de estado) ---
   const openDayInspector = useCallback((dateStr) => {
-    if (!state || !metrics) return;
+    if (!latestRef.current.state || !latestRef.current.metrics) return;
     const selectedDate = parseDate(dateStr);
     setInspectedDateStr(dateStr);
     setInspectedDate(selectedDate);
     setDayModalOpen(true);
-  }, [state, metrics]);
+  }, []);
 
   // --- closeDayModal ---
   const closeDayModal = useCallback(() => {
     setDayModalOpen(false);
   }, []);
 
-  // --- handleAddEvent ---
+  // --- handleAddEvent (persistencia automática vía usePersistedState) ---
   const handleAddEvent = useCallback((title, dateStr) => {
     setState((prev) => ({
       ...prev,
@@ -181,19 +187,19 @@ export default function App() {
         { id: "ev-" + Date.now(), title, date: dateStr }
       ]
     }));
-    commit();
-  }, [commit]);
+  }, [setState]);
 
-  // --- handleDeleteEvent ---
+  // --- handleDeleteEvent (persistencia automática vía usePersistedState) ---
   const handleDeleteEvent = useCallback((id) => {
     setState((prev) => ({
       ...prev,
       customEvents: prev.customEvents.filter((ev) => ev.id !== id)
     }));
-    commit();
-  }, [commit]);
+  }, [setState]);
 
   // --- handleProcedureToggle (desde ProceduresList) ---
+  // Estable: mutaciones funcionales + notificación calculada sobre el
+  // estado committed vía latestRef (mismas fórmulas del original).
   const handleProcedureToggle = useCallback(
     (id, isChecked, proc) => {
       setState((prev) => ({
@@ -201,16 +207,18 @@ export default function App() {
         completedProcedures: { ...prev.completedProcedures, [id]: isChecked }
       }));
       if (proc && proc.isExtensionAction && proc.extendsDays) {
+        const committed = latestRef.current.state;
         if (isChecked) {
+          const newAllowed = (committed?.allowedDays ?? 0) + proc.extendsDays;
           setState((prev) => ({
             ...prev,
             allowedDays: prev.allowedDays + proc.extendsDays
           }));
           const newExpiry = addDays(
-            parseDate(state.entryDateStr),
-            state.allowedDays + proc.extendsDays - 1
+            parseDate(committed?.entryDateStr),
+            newAllowed - 1
           );
-          showNotification(
+          notify(
             `¡Prórroga Registrada! Tu estancia legal se ha extendido +${proc.extendsDays} días (hasta el ${formatDatePretty(newExpiry)}).`
           );
         } else {
@@ -218,45 +226,86 @@ export default function App() {
             ...prev,
             allowedDays: prev.allowedDays - proc.extendsDays
           }));
-          showNotification(`Se revirtió la extensión de ${proc.extendsDays} días.`);
+          notify(`Se revirtió la extensión de ${proc.extendsDays} días.`);
         }
       }
-      commit();
     },
-    [state, commit, showNotification]
+    [latestRef, setState, showNotification]
   );
 
-  // --- API expuesta al dock y al HTML estático ---
-  const appApi = {
-    state,
-    metrics,
-    applyPreset,
-    showNotification,
-    openConfigModal,
-    commit,
-    getPreset,
-    renderMetricsAndAlerts: () => {
-      // No-op: React renderiza de forma declarativa
+  // --- Cambio de pestaña: estado + persistencia + scroll ---
+  // (antes: dock.switchTab manipulaba el DOM; ahora es estado derivado)
+  const handleTabChange = useCallback(
+    (tabId) => {
+      updateDockSettings({ activeTab: tabId });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [updateDockSettings]
+  );
+
+  // --- Visibilidad del dock (persistida en la clave legacy) ---
+  const handleHiddenChange = useCallback(
+    (hidden) => {
+      updateDockSettings({ isHidden: hidden });
+    },
+    [updateDockSettings]
+  );
+
+  // --- Radar: GPS en vivo y búsqueda de lugares (Sprint 3) ---
+  // El vuelo (flyTo) se expresa como "flyRequest" y lo ejecuta el
+  // MapController DENTRO del contexto del mapa — App no toca Leaflet.
+  const handleLocateGps = useCallback(async () => {
+    const coords = await geo.locate();
+    if (coords) {
+      setFlyRequest({
+        lat: coords.lat,
+        lng: coords.lng,
+        zoom: 13,
+        key: Date.now()
+      });
     }
-  };
+  }, [geo]);
 
-  // --- Montar Dock vanilla sobre #fupais-dock existente ---
-  useEffect(() => {
-    if (!appApi || dockRef.current) return;
-    (async () => {
-      const dock = await FuPaisDock.create(appApi);
-      dockRef.current = dock;
-      window.fuPaisDock = dock;
-      window.fuPaisApp = appApi;
-    })();
-    return () => {
-      dockRef.current = null;
-      window.fuPaisDock = undefined;
-      window.fuPaisApp = undefined;
-    };
-  }, [appApi]);
+  const handleMapSearch = useCallback(
+    async (query) => {
+      const place = await geo.findPlace(query);
+      if (place) {
+        setFlyRequest({
+          lat: place.lat,
+          lng: place.lng,
+          zoom: 12,
+          key: Date.now()
+        });
+      }
+    },
+    [geo]
+  );
 
-  const preset = state ? getPreset() : null;
+  // --- Bóveda: alta/baja de fichas (con sonido estilo vanilla) ---
+  const handleVaultAdd = useCallback(
+    (fileList) => {
+      const count = vault.addFiles(fileList);
+      if (count > 0) {
+        playUiSound(1200, "triangle", 0.08);
+        notify(
+          `¡${count} archivo(s) guardado(s) exitosamente en tu bóveda migratoria!`
+        );
+      }
+    },
+    [vault, playUiSound, notify]
+  );
+
+  const handleVaultRemove = useCallback(
+    (id) => {
+      vault.removeFile(id);
+      playUiSound(700, "sawtooth", 0.04);
+    },
+    [vault, playUiSound]
+  );
+
+  // Clase de cada vista derivada del estado (antes: classList del dock)
+  const viewClass = (id) =>
+    activeTab === id ? "fupais-view active" : "fupais-view";
 
   return (
     <div className="app-container">
@@ -270,7 +319,7 @@ export default function App() {
       {state ? (
         <>
           {metrics ? (
-            <section className="fupais-view active" id="view-inicio">
+            <section className={viewClass("inicio")} id="view-inicio">
               <section className="country-strip">
               <div className="country-details">
                 <div
@@ -341,7 +390,7 @@ export default function App() {
             </section>
 
             <main className="dashboard-grid">
-              <CalendarWrapper
+              <Calendar
                 metrics={metrics}
                 customEvents={state.customEvents}
                 onDateSelect={openDayInspector}
@@ -368,7 +417,7 @@ export default function App() {
           </section>
           ) : null}
 
-          <section className="fupais-view" id="view-mapa">
+          <section className={viewClass("mapa")} id="view-mapa">
             <div className="map-view-container">
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
                 <div>
@@ -378,26 +427,101 @@ export default function App() {
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <button id="btn-gps-locate" className="btn btn-primary btn-sm">
-                    Ubicar mi GPS Actual
-                  </button>
+                <button
+                  id="btn-gps-locate"
+                  className="btn btn-primary btn-sm"
+                  onClick={handleLocateGps}
+                  disabled={geo.locating}
+                >
+                  {geo.locating ? "Localizando..." : "Ubicar mi GPS Actual"}
+                </button>
                   <Badge variant="solid" style={{ backgroundColor: "#0ea5e9", color: "#fff" }}>
                     Live Tracker
                   </Badge>
                 </div>
               </div>
-              <Map appApi={appApi} />
-              <CountryCards onSelectPreset={applyPreset} />
+              {/* Mapa + barra flotante (búsqueda y capas) sobre contenedor relativo */}
+              <div style={{ position: "relative" }}>
+                <Map
+                  presetId={state?.presetId || null}
+                  active={activeTab === "mapa"}
+                  layerKey={mapLayer}
+                  position={geo.position}
+                  flyRequest={flyRequest}
+                  onApplyPreset={applyPreset}
+                  onPickLocation={geo.setManualPosition}
+                />
+                <div className="map-floating-bar">
+                  <MapSearch onSearch={handleMapSearch} />
+                  <MapLayerSwitcher value={mapLayer} onChange={setMapLayer} />
+                </div>
+              </div>
+
+              <GpsHud
+                position={geo.position}
+                meta={geo.meta}
+                legalZone={geo.legalZone}
+                locating={geo.locating}
+              />
+
+              <CountryCards
+                onSelectPreset={applyPreset}
+                activePresetId={state?.presetId}
+              />
             </div>
           </section>
 
-          <section className="fupais-view" id="view-archivos" />
-          <section className="fupais-view" id="view-perfil" />
-          <section className="fupais-view" id="view-configuracion" />
+          <section className={viewClass("archivos")} id="view-archivos">
+            <Vault
+              files={vault.files}
+              onAddFiles={handleVaultAdd}
+              onRemoveFile={handleVaultRemove}
+            />
+          </section>
+          <section className={viewClass("perfil")} id="view-perfil">
+            <ProfileView
+              state={state}
+              metrics={metrics}
+              preset={preset}
+              onOpenConfig={openConfigModal}
+            />
+          </section>
+          <section
+            className={viewClass("configuracion")}
+            id="view-configuracion"
+          >
+            <SettingsPanel settings={dockSettings} onChange={updateDockSettings} />
+          </section>
         </>
       ) : null}
 
-      <DockWrapper appApi={appApi} />
+      {/* Dock declarativo 100% controlado (Sprint 2) */}
+      <Dock
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        position={dockSettings.position}
+        theme={dockSettings.theme}
+        magnify={dockSettings.magnify}
+        autoHide={dockSettings.autoHide}
+        soundEnabled={dockSettings.soundEnabled}
+        filesCount={vault.files.length}
+        isHidden={dockSettings.isHidden}
+        onHiddenChange={handleHiddenChange}
+        spotlightOpen={spotlightOpen}
+        onSpotlightChange={setSpotlightOpen}
+        drawerOpen={drawerOpen}
+        onDrawerChange={setDrawerOpen}
+        onApplyPreset={applyPreset}
+        onOpenConfig={openConfigModal}
+        activeDestination={
+          preset
+            ? `${preset.flag} ${preset.destinationCountry} — ${preset.visaType}`
+            : undefined
+        }
+      />
+
+      {/* Notificaciones (toasts declarativos, Sprint 4) */}
+      <Toasts toasts={toasts} onDismiss={dismiss} />
 
       {/* Modal: Configurar viaje y fechas */}
       <ConfigModal
@@ -405,7 +529,6 @@ export default function App() {
         onClose={closeConfigModal}
         onSubmit={(data) => {
           setState((prev) => ({ ...prev, ...data }));
-          commit();
         }}
         presetId={state?.presetId}
         onPresetChange={applyPreset}
