@@ -47,6 +47,9 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
-    setupFiles: "./vitest.setup.js"
+    setupFiles: "./vitest.setup.js",
+    // Reutiliza un solo entorno jsdom por worker (57s → ~2s de setup),
+    // manteniendo el aislamiento por archivo.
+    pool: "vmThreads"
   }
 });

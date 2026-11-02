@@ -8,50 +8,35 @@
 
 ## 🏗️ Arquitectura
 
-FuPais sigue una arquitectura en capas donde **domain/**, **data/**, **state/** y **services/** son JavaScript puro sin dependencias del DOM, y **ui/** es la capa de presentación (migración progresiva a React).
+FuPais es **React 19 + Vite 8 al 100%**: `domain/`, `data/`, `state/` y `services/` son JavaScript puro sin dependencias del DOM (protegidos por 66 pruebas), y `ui/` es la capa declarativa — componentes y hooks, sin una sola clase vanilla.
 
 ```
 src/
-├── main.jsx                    # Punto de entrada React (try-catch para diagnóstico)
-├── domain/
-│   ├── dashboard.js            # buildDashboard(): motor de cálculo de estancia
-│   ├── dates.js                # Utilidades de fechas (parseDate, addDays, differenceInDays, formatDatePretty)
-│   └── windows.js              # Ventanas operativas de trámites
-├── data/
-│   ├── presets.js              # COUNTRY_RULES: única fuente de verdad legal (CO, PE verificados)
-│   ├── migrationPresets.js     # MIGRATION_PRESETS: registro derivado (filtro de publicación)
-│   ├── presetPresentation.js   # PRESET_PRESENTATION: textos y metadatos de UI
-│   └── presetCoords.js         # PRESET_COORDS: coordenadas por preset publicado
-├── state/
-│   └── store.js                # STORAGE_KEY="fupais_state_v2", subscribe/notify, defaultState
-├── services/
-│   ├── geocoding.js            # Puerto de geocodificación (reverseGeocode, searchPlace)
-│   ├── storage.js              # Puerto de persistencia (localStorage)
-│   └── adapters/
-│       ├── apiGeocodingAdapter.js    # Cliente del endpoint /api/geocode
-│       ├── publicGeocodingAdapter.js # Adapter público con normalización de textos
-│       └── localStorageAdapter.js    # Adapter de localStorage
+├── main.jsx                      # Punto de entrada React (fallback visual si falla el montaje)
+├── domain/                       # PURA — cálculo y reglas legales
+│   ├── dashboard.js              #   buildDashboard(): motor de cálculo de estancia
+│   ├── dates.js                  #   parseDate, addDays, differenceInDays, getLastAllowedDate…
+│   ├── windows.js / rules.js / format.js
+├── data/                         # PURA — registro legal verificado
+│   ├── presets.js                #   COUNTRY_RULES / COUNTRY_TASKS: única fuente de verdad
+│   ├── migrationPresets.js       #   MIGRATION_PRESETS: registro derivado (filtro de publicación)
+│   └── presetPresentation.js / presetCoords.js
+├── state/store.js                # loadState/saveState (STORAGE_KEY="fupais_state_v2")
+├── services/                     # Puertos async + adapters (storage, geocoding)
+├── api/geocode.js                # Handler serverless GET /api/geocode (Vercel)
 ├── ui/
-│   ├── App.jsx                 # Orquestador de componentes (estado React + store)
-│   ├── main.jsx                # Entry point React
+│   ├── App.jsx                   # Controlador React (hooks, sin clases)
+│   ├── domain/                   # Lógica pura de UI testeable: monthGrid.js, vaultFiles.js
+│   ├── hooks/                    # 10 hooks: métricas, persistencia, "hoy", dock, mapa, toasts, bóveda
 │   └── components/
-│       ├── Badge.jsx             # Componente base con variantes semánticas
-│       ├── Header.jsx            # Barra superior con preset selector
-│       ├── SmartAlert.jsx        # Alerta migratoria contextual (5 estados)
-│       ├── MetricCard.jsx        # Tarjetas de métrica con barra de progreso
-│       ├── CalendarWrapper.jsx   # Envoltorio React para FuPaisCalendar (vanilla)
-│       ├── ProceduresList.jsx    # Lista de trámites con auto-extensión de prórroga
-│       ├── CountryCards.jsx      # Catálogo de países data-driven (MIGRATION_PRESETS)
-│       ├── Map.jsx               # Mapa Leaflet v5 con pines y rutas de vuelo
-│       ├── ConfigModal.jsx       # Modal "Ajustar Fechas y Perfil de Viaje" (React controlado)
-│       ├── DayModal.jsx          # Modal "Detalle del Día Inspeccionado" (React controlado)
-│       ├── DockWrapper.jsx       # Envoltorio React para FuPaisDock (vanilla)
-│       └── DockLayout.jsx        # HTML del dock, spotlight y drawer en JSX
-├── components/dock/            # Clases vanilla del dock (Spotlight, Drawer, Map, Vault, Settings)
-├── api/
-│   └── geocode.js              # Handler serverless GET /api/geocode (Vercel)
-├── vite.config.js              # Vite + plugin React + montaje de API geocoding
-└── vitest.setup.js             # Configuración de pruebas
+│       ├── Header / PresetSelector / SmartAlert / MetricCard / Badge / ProceduresList / CountryCards
+│       ├── Calendar.jsx          # Calendario declarativo (grilla pura en ui/domain/monthGrid.js)
+│       ├── ConfigModal.jsx / DayModal.jsx / Toast.jsx
+│       ├── Vault.jsx / ProfileView.jsx / SettingsPanel.jsx   # vistas Archivos / Perfil / Configuración
+│       ├── dock/                 # Dock, DockBar, DockItem, Spotlight, Drawer (100% controlado)
+│       └── map/                  # Map (react-leaflet v5), mapIcons, GpsHud, MapSearch, MapLayerSwitcher
+├── components/dock/constants.js  # Claves legacy de storage + defaults del dock
+└── vite.config.js / vitest.setup.js
 ```
 
 ### Capas clave
@@ -60,9 +45,9 @@ src/
 |------|-------------|
 | `domain/` | Lógica de negocio pura: `buildDashboard()`, cálculos de fechas, ventanas de trámites |
 | `data/` | Datos de reglas migratorias (COUNTRY_RULES), registro de presets publicados, coordenadas |
-| `state/` | Store único con `subscribe`/`notify`, persistencia en `fupais_state_v2` |
-| `services/` | Puertos y adapters: geocodificación (endpoint `/api/geocode`), almacenamiento |
-| `ui/` | Componentes React que consumen el store y las capas puras |
+| `state/` | `loadState`/`saveState` sobre el puerto de storage (`fupais_state_v2`) |
+| `services/` | Puertos y adapters: geocodificación (`/api/geocode`), almacenamiento |
+| `ui/` | React 19: componentes declarativos + 10 hooks (métricas, persistencia, dock, mapa, toasts, bóveda) |
 
 ### Reglas de publicación (data-driven)
 
@@ -98,16 +83,27 @@ Añadir un país nuevo es solo añadir datos al registro (`presets.js` + `preset
 - Pines de países publicados (data-driven desde `MIGRATION_PRESETS`)
 - Rutas de vuelo entre países publicados (Lima → Bogotá)
 - Popup con tipo de visa, límite legal y resumen normativo
-- Click en pin para activar preset y volar el mapa al destino
+- Clic en pin / tarjeta / selector de país → **un solo `flyTo` animado** sin remontar el mapa
+- GPS en vivo y posición manual (clic o arrastre) con reverse geocode vía `/api/geocode`
+- HUD de telemetría: coordenadas, ciudad, precisión y zona legal derivada
+- Capas Calles / Satélite / Terreno y buscador de lugares
+
+### Dock estilo macOS & Spotlight
+- Barra flotante con magnificación de vecinos, auto-ocultar y señal *peek*
+- **Spotlight (Cmd+K)**: búsqueda universal de vistas, países y trámites con navegación por teclado (↑ ↓ Enter Esc)
+- **Centro de Control (Cmd+M)**: contactos de emergencia y accesos rápidos
+- Atajos `Cmd/Ctrl + K · M · D · 1…5` y sonidos de interfaz opcionales (con toggle)
 
 ### Bóveda de Documentos
-- Zona de carga y arrastre para pasaportes, sellos de entrada, cartas universitarias, formularios FUT
-- Filtros por categoría (Pasaportes, Visas, Prórrogas, Académicos)
+- Zona de carga y arrastre para pasaportes, sellos de entrada, cartas universitarias y formularios FUT
+- Filtros por categoría (Pasaportes, Visas, Prórrogas, Académicos, Otros)
+- Se guarda la **ficha** (nombre, tamaño, fecha, categoría) — nunca el contenido del archivo
+- El badge del dock refleja el número real de documentos almacenados
 
 ### Configuración
-- Ajustar fecha de llegada y duración autorizada (días)
+- Vista de Configuración con panel estilo iOS: posición del dock, tema claro/oscuro, magnificación, auto-ocultar y sonidos — persistencia automática
+- Modal "Ajustar Fechas y Perfil de Viaje": fecha de llegada, duración autorizada y datos del viaje
 - Selector de país de destino con reglas legales verificadas
-- Personalización del dock (posición, tema, auto-ocultar, sonidos)
 
 ---
 
@@ -129,13 +125,15 @@ No se requieren variables de entorno para el despliegue básico. El endpoint `/a
 
 ## 🧪 Pruebas
 
-FuPais utiliza **Vitest** como framework de pruebas. Las capas puras (`domain/`, `data/`, `state/`, `services/`) están cubiertas por 66 pruebas:
+FuPais utiliza **Vitest** + **React Testing Library**. Las capas puras (`domain/`, `data/`, `state/`, `services/`) conservan sus **66 pruebas originales intactas**; la capa React suma 53 (hooks, dock, mapa, calendario, bóveda y vistas) para un total de **119**:
 
 ```bash
-npm test            # Ejecuta todas las pruebas (66/66)
+npm test            # Ejecuta todas las pruebas (119/119)
 npm run build       # Build de producción
 npm run dev         # Servidor de desarrollo (localhost:5173)
 ```
+
+**Integración continua**: `.github/workflows/ci.yml` ejecuta `npm test` + `npm run build` en cada push a `main` y en cada pull request.
 
 ---
 
@@ -155,12 +153,14 @@ npm run dev         # Servidor de desarrollo (localhost:5173)
 
 - ✅ **Fase 1**: Frontend vanilla con diseño "papel frostado" y tema Geist
 - ✅ **Fase 2**: Capa de estado unificada (`state/store.js`) con `subscribe`/`notify`
-- ✅ **Fase 3**: Dock modular (clases con `applyMethods`) y puerto de geocodificación
+- ✅ **Fase 3**: Dock modular y puerto de geocodificación
 - ✅ **Fase 4**: Endpoint serverless `/api/geocode` (Vercel) + recorte data-driven de pines/tarjetas
-- ✅ **Fase 5**: Migración progresiva a React (UI en `ui/` + `components/`, capas puras intactas)
-- 🔄 **En curso**: README y documentación de GitHub
+- ✅ **Fase 5**: Migración progresiva a React (capas puras intactas)
+- ✅ **Auditoría estratégica (4 sprints)**: núcleo reactivo → dock declarativo → mapa reactivo → calendario + cierre de deuda. UI 100% React, 0 deuda técnica, hallazgos H1–H8 resueltos
+- ✅ **Post-sprint**: vistas Archivos / Perfil / Configuración implementadas + CI (GitHub Actions)
 - ⏳ **Pendiente**: Guía de renombrado Vercel a FuPais (ejecución manual por el usuario)
-- ⏳ **Pendiente**: Limpieza diferida (favicon 404, semilla `defaultState()`, mejora de Escape-en-modal)
+- ⏳ **Pendiente**: Limpieza diferida (semilla `defaultState()`, mejora de Escape-en-modal)
+- ⏳ **Futuro**: contenido real de la bóveda (requiere storage de objetos)
 
 ---
 

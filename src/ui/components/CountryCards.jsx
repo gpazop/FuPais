@@ -8,7 +8,7 @@
 import Badge from "./Badge.jsx";
 import { MIGRATION_PRESETS } from "../../data/migrationPresets.js";
 
-export default function CountryCards({ onSelectPreset }) {
+export default function CountryCards({ onSelectPreset, activePresetId }) {
   const presets = Object.values(MIGRATION_PRESETS);
 
   return (
@@ -28,7 +28,11 @@ export default function CountryCards({ onSelectPreset }) {
         {presets.map((p) => (
           <div
             key={p.id}
-            className="country-interactive-card"
+            className={
+              p.id === activePresetId
+                ? "country-interactive-card selected"
+                : "country-interactive-card"
+            }
             data-select-preset={p.id}
             onClick={() => onSelectPreset?.(p.id)}
             role="button"
