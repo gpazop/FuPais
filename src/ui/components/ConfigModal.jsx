@@ -36,11 +36,19 @@ export default function ConfigModal({
   allowedDays,
   onAllowedDaysChange
 }) {
-  const [duration, setDuration] = useState(allowedDays);
+  const [duration, setDuration] = useState(allowedDays ?? 90);
   const [durationPreview, setDurationPreview] = useState("");
 
   // Rebuild duration <option>s when preset or allowedDays change
   const [durationOptions, setDurationOptions] = useState([]);
+
+  // Al abrir el modal, la duración mostrada debe reflejar SIEMPRE el valor
+  // vigente (p. ej. después de registrar una prórroga de +90 días). Sin esta
+  // sincronización el modal conservaba el `allowedDays` del primer montaje y
+  // "Guardar y Recalcular" podía sobrescribir una prórroga ya registrada.
+  useEffect(() => {
+    if (open) setDuration(allowedDays ?? 90);
+  }, [open, allowedDays]);
 
   const rebuildDurationOptions = useCallback(() => {
     const preset = MIGRATION_PRESETS[presetId];
@@ -109,6 +117,7 @@ export default function ConfigModal({
           <button
             className="btn btn-outline btn-sm"
             onClick={onClose}
+            aria-label="Cerrar"
             data-close-modal
           >
             ✕
@@ -201,11 +210,7 @@ export default function ConfigModal({
                         ? "actual"
                         : "tope del periodo";
                     return (
-                      <option
-                        key={a.days}
-                        value={a.days}
-                        selected={a.days === duration}
-                      >
+                      <option key={a.days} value={a.days}>
                         {a.days} días ({tag})
                       </option>
                     );

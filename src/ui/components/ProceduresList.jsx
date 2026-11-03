@@ -31,6 +31,12 @@ export default function ProceduresList({
     );
   }
 
+  // Días que otorga la prórroga según los datos del preset activo. Antes el
+  // pie de lista afirmaba "+90 días" para TODAS las normativas (falso para
+  // Perú); ahora el número sale del trámite de extensión publicado.
+  const extensionDays =
+    procedures.find((proc) => proc.isExtensionAction)?.extendsDays ?? null;
+
   return (
     <div className="procedure-list">
       {procedures.map((proc) => {
@@ -79,14 +85,16 @@ export default function ProceduresList({
             />
             <div className="procedure-body">
               <div className="procedure-title">
-                <span
+                <label
+                  htmlFor={`proc-${proc.id}`}
                   style={{
+                    cursor: "pointer",
                     textDecoration: isDone ? "line-through" : "none",
                     color: isDone ? "var(--color-mid-gray)" : undefined
                   }}
                 >
                   {proc.title}
-                </span>
+                </label>
                 {deadlineBadge}
               </div>
               <div className="procedure-desc">{proc.desc}</div>
@@ -138,9 +146,10 @@ export default function ProceduresList({
           borderRadius: 8
         }}
       >
-        ✦ <strong>Auto-extensión:</strong> Marcar la aprobación de la prórroga
-        actualizará automáticamente tu fecha límite añadiendo los +90 días
-        legales.
+        ✦ <strong>Auto-extensión:</strong>{" "}
+        {extensionDays
+          ? `Marcar la aprobación de la prórroga actualizará automáticamente tu fecha límite añadiendo los +${extensionDays} días de tu normativa.`
+          : "La prórroga de tu normativa se registra desde la lista de trámites."}
       </div>
     </div>
   );

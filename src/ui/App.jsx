@@ -89,7 +89,7 @@ export default function App() {
     if (!preset || !state) return [];
     return preset.procedures.map((proc) => ({
       ...proc,
-      done: state.completedProcedures[proc.id] === true
+      done: state.completedProcedures?.[proc.id] === true
     }));
   }, [preset, state?.completedProcedures]);
 
@@ -183,7 +183,7 @@ export default function App() {
     setState((prev) => ({
       ...prev,
       customEvents: [
-        ...prev.customEvents,
+        ...(prev.customEvents ?? []),
         { id: "ev-" + Date.now(), title, date: dateStr }
       ]
     }));
@@ -193,7 +193,7 @@ export default function App() {
   const handleDeleteEvent = useCallback((id) => {
     setState((prev) => ({
       ...prev,
-      customEvents: prev.customEvents.filter((ev) => ev.id !== id)
+      customEvents: (prev.customEvents ?? []).filter((ev) => ev.id !== id)
     }));
   }, [setState]);
 
@@ -230,7 +230,7 @@ export default function App() {
         }
       }
     },
-    [latestRef, setState, showNotification]
+    [latestRef, setState, notify]
   );
 
   // --- Cambio de pestaña: estado + persistencia + scroll ---
@@ -348,8 +348,18 @@ export default function App() {
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                <span className="rule-pill"><strong>Ventana Legal:</strong> 15 a 5 días previos</span>
-                <span className="rule-pill"><strong>Extensión:</strong> +90 días PTP</span>
+                {/* Valores derivados de la normativa activa (windows.js +
+                    COUNTRY_RULES): antes eran texto fijo, así que cualquier
+                    preset mostraba la ventana y la extensión de Colombia. */}
+                <span className="rule-pill">
+                  <strong>Ventana Legal:</strong> {metrics.windowStartBeforeExpiry} a{" "}
+                  {metrics.safeDeadlineBeforeExpiry} días previos
+                </span>
+                {preset?.extendsDays ? (
+                  <span className="rule-pill">
+                    <strong>Extensión:</strong> +{preset.extendsDays} días
+                  </span>
+                ) : null}
                 {preset?.officialPortalUrl && (
                   <a
                     id="official-portal-link"
@@ -392,7 +402,7 @@ export default function App() {
             <main className="dashboard-grid">
               <Calendar
                 metrics={metrics}
-                customEvents={state.customEvents}
+                customEvents={state.customEvents ?? []}
                 onDateSelect={openDayInspector}
               />
 

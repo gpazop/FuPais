@@ -25,6 +25,22 @@ export default function DayModal({
 }) {
   const [newEventTitle, setNewEventTitle] = useState("");
 
+  // Cerrar modal con tecla Escape.
+  // IMPORTANTE: este useEffect va ANTES del early return de abajo. Un hook
+  // después de un `return` rompe el orden de hooks entre el render cerrado
+  // (1 hook) y el abierto (2 hooks): React lanzaba el error #310
+  // ("Rendered more hooks than during the previous render") al pulsar un día
+  // y el modal nunca llegaba a pintarse. Regla de hooks: todos los hooks
+  // siempre, y los returns después.
+  useEffect(() => {
+    if (!open) return;
+    const onKeydown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeydown);
+    return () => window.removeEventListener("keydown", onKeydown);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const dayNumber = selectedDate
@@ -44,26 +60,12 @@ export default function DayModal({
     (p) => p.targetDate && formatDateISO(p.targetDate) === dateStr
   );
 
-  // Cerrar modal con tecla Escape
-  useEffect(() => {
-    if (!open) return;
-    const onKeydown = (e) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeydown);
-    return () => window.removeEventListener("keydown", onKeydown);
-  }, [open, onClose]);
-
   const handleAddEvent = (e) => {
     e.preventDefault();
     const title = newEventTitle.trim();
     if (!title) return;
     onAddEvent(title, dateStr);
     setNewEventTitle("");
-  };
-
-  const handleDeleteEvent = (id) => {
-    onDeleteEvent(id);
   };
 
   return (
@@ -79,6 +81,7 @@ export default function DayModal({
           <button
             className="btn btn-outline btn-sm"
             onClick={onClose}
+            aria-label="Cerrar"
             data-close-modal
           >
             ✕

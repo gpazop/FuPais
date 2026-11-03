@@ -62,6 +62,10 @@ export function defaultState() {
  * elimina de memoria.
  */
 export function normalizeState(raw) {
+  // Un valor persistido que no sea objeto (string, número, null) no puede
+  // hidratar la app: se descarta y se usa el estado por defecto.
+  if (!raw || typeof raw !== "object") return defaultState();
+
   const state = { ...raw };
   if (state.expiryDateStr && state.entryDateStr && !state.allowedDays) {
     const entry = parseDate(state.entryDateStr);
@@ -70,17 +74,55 @@ export function normalizeState(raw) {
     state.allowedDays = Math.max(1, differenceInDays(expiry, entry) + 1);
     delete state.expiryDateStr;
   }
+  // Blindaje de hidratación: la clave `fupais_state_v2` puede contener un
+  // estado parcial (escrito por una versión anterior, editado a mano o
+  // truncado). Antes, un `completedProcedures` ausente hacía que el render
+  // de <App> lanzara TypeError y dejara la app en blanco; ahora el estado
+  // siempre llega al árbol con la forma que los consumidores esperan.
+  if (!state.completedProcedures || typeof state.completedProcedures !== "object") {
+    state.completedProcedures = {};
+  }
+  if (!Array.isArray(state.customEvents)) {
+    state.customEvents = [];
+  }
+  // Blindaje de fechas: `parseDate()` no valida el formato y
+  // `Intl.DateTimeFormat` lanza RangeError con una fecha inválida, lo que
+  // volvía a romper el render (pantalla en blanco) con datos legados como
+  // '15/10/2026'. Se exige ISO 'YYYY-MM-DD' real; si no, se usa el default.
+  if (!isValidISODate(state.entryDateStr)) {
+    state.entryDateStr = defaultState().entryDateStr;
+  }
+  if (!Number.isFinite(Number(state.allowedDays)) || Number(state.allowedDays) < 1) {
+    state.allowedDays = defaultState().allowedDays;
+  }
   return state;
+}
+
+/** ¿'YYYY-MM-DD' que además representa una fecha real (no 2026-02-31)? */
+function isValidISODate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return false;
+  }
+  const date = parseDate(value);
+  return !Number.isNaN(date.getTime()) && formatDateISO(date) === value;
 }
 
 /**
  * Hydrate: lee el estado persistido (o el default si no hay) y lo normaliza.
  * Async a propósito: hoy es localStorage (sync) detrás del puerto, mañana
  * puede ser un ApiAdapter.
+ *
+ * Un fallo del puerto (adapter que lanza, cuota, storage bloqueado) NO debe
+ * impedir el arranque: se cae al estado por defecto y se registra el motivo.
  */
 export async function loadState() {
-  const stored = await storage.get(STORAGE_KEY);
-  return stored ? normalizeState(stored) : defaultState();
+  try {
+    const stored = await storage.get(STORAGE_KEY);
+    return stored ? normalizeState(stored) : defaultState();
+  } catch (error) {
+    console.error("No se pudo hidratar el estado guardado; se usa el default:", error);
+    return defaultState();
+  }
 }
 
 export async function saveState(state) {

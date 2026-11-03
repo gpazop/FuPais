@@ -36,7 +36,14 @@ export default function Header({
           onChange={onPresetChange}
           label="Normativa de país de destino"
         />
-        <div id="header-status-badge" className="badge badge-solid">
+        {/* El color del estado lo decide `buildDashboard` (statusBadge.type):
+            antes se forzaba `badge-solid`, así que un viaje vencido o en
+            riesgo se pintaba igual que uno al día. */}
+        <div
+          id="header-status-badge"
+          className={`badge ${statusBadge?.type ?? "badge-solid"}`}
+          title={statusBadge?.detailMessage ?? undefined}
+        >
           <span className="badge-dot" aria-hidden="true"></span>
           {statusBadge?.label ?? "Verificando..."}
         </div>

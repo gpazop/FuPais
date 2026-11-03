@@ -125,10 +125,10 @@ No se requieren variables de entorno para el despliegue básico. El endpoint `/a
 
 ## 🧪 Pruebas
 
-FuPais utiliza **Vitest** + **React Testing Library**. Las capas puras (`domain/`, `data/`, `state/`, `services/`) conservan sus **66 pruebas originales intactas**; la capa React suma 53 (hooks, dock, mapa, calendario, bóveda y vistas) para un total de **119**:
+FuPais utiliza **Vitest** + **React Testing Library**. Las capas puras (`domain/`, `data/`, `state/`, `services/`) conservan sus **66 pruebas originales intactas**; la capa React suma 59 (hooks, dock, mapa, calendario, bóveda, vistas y el smoke integral de `<App/>` + modales que ahora bloquea en CI los errores de render) para un total de **125**:
 
 ```bash
-npm test            # Ejecuta todas las pruebas (119/119)
+npm test            # Ejecuta todas las pruebas (125/125)
 npm run build       # Build de producción
 npm run dev         # Servidor de desarrollo (localhost:5173)
 ```

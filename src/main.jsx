@@ -7,6 +7,7 @@ import ReactDOM from "react-dom/client";
 import { setGeocodingAdapter } from "./services/geocoding.js";
 import { apiGeocodingAdapter } from "./services/adapters/apiGeocodingAdapter.js";
 import App from "./ui/App.jsx";
+import AppErrorBoundary from "./ui/components/AppErrorBoundary.jsx";
 
 // Composition root: the app always talks to the serverless proxy, in dev
 // and in production. vite.config.js mounts the same handler locally.
@@ -18,7 +19,11 @@ if (!rootEl) {
 }
 
 try {
-  ReactDOM.createRoot(rootEl).render(<App />);
+  ReactDOM.createRoot(rootEl).render(
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
+  );
 } catch (error) {
   // Fallback visual si falla el montaje de React: evita pantalla en blanco
   // y muestra el error para diagnóstico en producción (Vercel).
