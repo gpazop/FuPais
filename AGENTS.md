@@ -5,7 +5,7 @@ App web (Vite 8 + React 19) para controlar días de permanencia legal en el extr
 ## Comandos
 
 - `npm run dev` — Vite en http://localhost:5173
-- `npm test` — vitest sobre `tests/` (119 pruebas). Es la verificación automática del repo y el gate de CI.
+- `npm test` — vitest sobre `tests/` (125 pruebas). Es la verificación automática del repo y el gate de CI.
 - `npm run build` — build a `dist/`
 - `npm run preview` — sirve el build
 
@@ -48,7 +48,9 @@ domain → data → state → services → ui
 - Métricas: `useDashboardMetrics` memoiza `buildDashboard` sobre entradas primitivas + identidad de `tasks` + `todayKey`. No recomputar por render ni derivar con `useEffect` + `setState`.
 - Callbacks que pasan a componentes memoizados (`Map`, `Dock`): identidad estable (setState funcional o refs "latest").
 - Mapa (react-leaflet v5): instancia por `useMap`/`useMapEvents` (**NO** `onCreate` — no existe), markers con `eventHandlers` (**NO** `onClick`), `Popup` con estilos objeto, íconos cacheados en `mapIcons.js`, `center`/`zoom` solo como valores iniciales. Los vuelos (`flyTo`) viven en `MapController`; App nunca toca Leaflet.
-- El CSS no se importa desde JS: `index.html` carga `css/base`, `css/components` y `css/layout` por `<link>`, y Leaflet 1.9.4 desde CDN. Antes de añadir estilos, reutiliza las clases existentes (ya hay diseño para dock, spotlight, drawer, bóveda, perfil, settings y telemetría). `css/styles.css` y `js/` son residuos del diseño anterior; no los edites.
+- El CSS no se importa desde JS: `index.html` carga `css/base`, `css/components` y `css/layout` por `<link>` y la hoja de estilos de Leaflet 1.9.4 desde CDN. El **JS** de Leaflet NO se carga desde CDN: entra en el bundle vía `react-leaflet` y nadie usa `window.L` (el `<script>` de unpkg era render-blocking y redundante). Antes de añadir estilos, reutiliza las clases existentes (ya hay diseño para dock, spotlight, drawer, bóveda, perfil, settings y telemetría). `css/styles.css` y `js/` son residuos del diseño anterior; no los edites.
+- Hooks antes que returns: un early return de componente (p. ej. `if (!open) return null`) SIEMPRE va después de todos los hooks. Un `useEffect` después de un return condicional causó el error React #310 en `DayModal` (cerrado = 1 hook, abierto = 2) y el modal no abría.
+- `src/main.jsx` envuelve `<App/>` en `AppErrorBoundary`: cualquier error de render se muestra como fallback recuperable, nunca como pantalla en blanco (el `try/catch` de `createRoot().render()` no captura errores de render de React 19). No lo elimines.
 
 ## Reglas de dominio que no se rompen
 
@@ -68,7 +70,7 @@ domain → data → state → services → ui
 - `tests/*.test.{js,jsx}` — los archivos con JSX usan extensión `.jsx`.
 - RTL (`@testing-library/react`) para componentes y `renderHook` para hooks; la geocodificación se stuba inyectando un adapter con `setGeocodingAdapter`.
 - `vite.config.js` usa `pool: "vmThreads"` para reutilizar jsdom entre archivos.
-- Regla histórica: las 66 pruebas de las capas puras no se modifican; las pruebas nuevas SUMAN (hoy 53 de hooks, dock, mapa, calendario, bóveda y vistas).
+- Regla histórica: las 66 pruebas de las capas puras no se modifican; las pruebas nuevas SUMAN (hoy 59 de hooks, dock, mapa, calendario, bóveda, vistas y smoke integral de `App`/modales).
 
 ## Flujo de trabajo
 

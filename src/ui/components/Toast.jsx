@@ -19,7 +19,6 @@ export default function Toasts({ toasts, onDismiss }) {
         flexDirection: "column",
         gap: 8
       }}
-      aria-live="polite"
     >
       {toasts.map((toast) => (
         <div

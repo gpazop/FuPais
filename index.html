@@ -18,9 +18,12 @@
   <link rel="stylesheet" href="css/layout/app.css">
   <link rel="stylesheet" href="css/components/dock.css">
 
-  <!-- Leaflet CSS & JS for Real Google Maps Engine, Layers & Markers -->
+  <!-- Leaflet CSS: el JS NO se carga desde CDN. `leaflet` entra en el bundle
+       vía react-leaflet (nadie usa la global window.L), así que el <script> de
+       unpkg solo añadía ~148 kB render-blocking y un punto de fallo externo.
+       El CSS sí se toma del CDN porque las hojas de Leaflet no se importan
+       desde JS en este proyecto (convención de AGENTS.md). -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
   <!-- Favicon (evita 404 en navegadores que solicitan /favicon.ico por defecto) -->
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230ea5e9'/%3E%3Ctext x='50' y='60' font-family='Geist, sans-serif' font-size='48' fill='%23ffffff' text-anchor='middle' font-weight='700'%3EFu%3C/text%3E%3C/svg%3E" />

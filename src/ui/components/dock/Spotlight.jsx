@@ -79,7 +79,7 @@ export default function Spotlight({
         title: "Formulario Único de Trámites (FUT)",
         subtitle: "Portal oficial de Migración Colombia",
         icon: "📝",
-        run: () => window.open(FUT_PORTAL_URL, "_blank")
+        run: () => window.open(FUT_PORTAL_URL, "_blank", "noopener,noreferrer")
       },
       {
         key: "fechas",
