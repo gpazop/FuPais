@@ -33,7 +33,7 @@ afterEach(() => {
 describe("<Dock /> declarativo", () => {
   it("renderiza los ítems con sus aria-labels (paridad de marcado)", () => {
     render(<Dock activeTab="inicio" onTabChange={vi.fn()} />);
-    expect(screen.getByLabelText("Inicio")).toBeTruthy();
+    expect(screen.getByLabelText("Resumen")).toBeTruthy();
     expect(screen.getByLabelText("Mapa y Seguimiento")).toBeTruthy();
     expect(screen.getByLabelText("Búsqueda")).toBeTruthy();
     expect(screen.getByLabelText("Configuración")).toBeTruthy();
@@ -43,8 +43,8 @@ describe("<Dock /> declarativo", () => {
   it("deriva la pestaña activa del estado y dispara onTabChange al clic", () => {
     const onTabChange = vi.fn();
     render(<Dock activeTab="inicio" onTabChange={onTabChange} />);
-    expect(screen.getByLabelText("Inicio").className).toContain("active");
-    expect(screen.getByLabelText("Inicio").className).not.toContain("neighbor-1");
+    expect(screen.getByLabelText("Resumen").className).toContain("active");
+    expect(screen.getByLabelText("Resumen").className).not.toContain("neighbor-1");
 
     fireEvent.click(screen.getByLabelText("Mapa y Seguimiento"));
     expect(onTabChange).toHaveBeenCalledTimes(1);
@@ -56,11 +56,11 @@ describe("<Dock /> declarativo", () => {
     const mapa = screen.getByLabelText("Mapa y Seguimiento");
     fireEvent.mouseEnter(mapa);
     // Vecinos inmediatos de 'mapa' en el índice de ítems: inicio y búsqueda.
-    expect(screen.getByLabelText("Inicio").className).toContain("neighbor-1");
+    expect(screen.getByLabelText("Resumen").className).toContain("neighbor-1");
     expect(screen.getByLabelText("Búsqueda").className).toContain("neighbor-1");
     expect(mapa.className).not.toContain("neighbor-1");
     fireEvent.mouseLeave(mapa);
-    expect(screen.getByLabelText("Inicio").className).not.toContain("neighbor-1");
+    expect(screen.getByLabelText("Resumen").className).not.toContain("neighbor-1");
   });
 
   it("Cmd/Ctrl+K y Cmd/Ctrl+D disparan UNA sola vez por pulsación", () => {

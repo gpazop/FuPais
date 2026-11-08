@@ -18,6 +18,7 @@ import { useEffect, useMemo, useState } from "react";
 import { buildMonthGrid, MONTH_NAMES } from "../domain/monthGrid.js";
 
 const WEEKDAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+const DAY_OFFSETS = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
 
 function monthKeyOf(date) {
   return `${date.getFullYear()}-${date.getMonth()}`;
@@ -29,6 +30,7 @@ export default function Calendar({ metrics, customEvents = [], onDateSelect }) {
       ? { year: metrics.today.getFullYear(), month: metrics.today.getMonth() }
       : { year: new Date().getFullYear(), month: new Date().getMonth() }
   );
+  const [focusedDate, setFocusedDate] = useState(null);
 
   // Sincroniza la vista SOLO cuando cambia el mes de "hoy" (no en
   // cada recomputación de métricas — corrige el salto del vanilla).
@@ -57,6 +59,11 @@ export default function Calendar({ metrics, customEvents = [], onDateSelect }) {
   );
 
   if (!metrics || !grid) return null;
+
+  const firstDay = grid.cells.find((cell) => !cell.muted);
+  const entryDate = grid.cells.find((cell) => !cell.muted && cell.dateISO === focusedDate)
+    ?? grid.cells.find((cell) => cell.classes.includes("day-today"))
+    ?? firstDay;
 
   const goToToday = () => {
     if (metrics.today) {
@@ -137,7 +144,8 @@ export default function Calendar({ metrics, customEvents = [], onDateSelect }) {
         ))}
       </div>
 
-      <div className="calendar-days-grid">
+      <div className="calendar-days-grid" role="group"
+        aria-label="Días del mes. Usa las flechas para recorrer las fechas.">
         {grid.cells.map((cell, index) =>
           cell.muted ? (
             <div
@@ -155,7 +163,9 @@ export default function Calendar({ metrics, customEvents = [], onDateSelect }) {
               className={cell.classes.join(" ")}
               data-date={cell.dateISO}
               role="button"
-              tabIndex={0}
+              tabIndex={cell === entryDate ? 0 : -1}
+              aria-current={cell.classes.includes("day-today") ? "date" : undefined}
+              onFocus={() => setFocusedDate(cell.dateISO)}
               aria-label={`${cell.dayNum} de ${grid.monthTitle}${
                 cell.counter ? ` — ${cell.counter.text}` : ""
               }`}
@@ -164,6 +174,12 @@ export default function Calendar({ metrics, customEvents = [], onDateSelect }) {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   onDateSelect?.(cell.dateISO);
+                }
+                const offset = DAY_OFFSETS[e.key];
+                if (offset) {
+                  e.preventDefault();
+                  const target = e.currentTarget.parentElement.children[index + offset];
+                  if (target?.hasAttribute("data-date")) target.focus();
                 }
               }}
             >

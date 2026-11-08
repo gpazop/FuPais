@@ -1,20 +1,108 @@
+/* ========================================================
+   FUPAIS — DESIGN TOKENS (única fuente de verdad)
+   --------------------------------------------------------
+   Capas:
+     1) PRIMITIVAS  → escala cruda (no usar directo en componentes)
+     2) SEMÁNTICAS  → roles (bg-*, txt-*, border-*, accent-*, status-*)
+     3) ALIAS LEGACY→ nombres antiguos (--color-*, --surface-*, --spacing-*)
+        re-apuntados a la capa semántica para no romper CSS ni estilos
+        inline que todavía los referencian.
+
+   Reglas:
+     - Los componentes deben consumir tokens SEMÁNTICOS, nunca primitivas
+       ni hex arbitrarios.
+     - El tema oscuro re-declara la capa semántica (y sus alias), no los
+       componentes. Vive aquí, no en una hoja de componente.
+     - `--radius-lg|md|sm|2xl|3xl|full` existían USADOS pero INDEFINIDOS
+       (resolvían a 0px). Quedan definidos aquí.
+   ======================================================== */
+
 :root {
-  /* Colors — Shadcn Blueprint Monochromatic Palette */
-  --color-canvas: #f5f5f5;
-  --color-paper: #ffffff;
-  --color-surface-alt: #fafafa;
-  --color-ink: #0a0a0a;
-  --color-ink-soft: #171717;
-  --color-mid-gray: #737373;
-  --color-hairline: #e5e5e5;
-  --color-ember: #e7000b;
-  --color-ember-soft: rgba(231, 0, 11, 0.08);
+  /* ======================================================
+     1) PRIMITIVAS
+     ====================================================== */
+  --gray-0: #ffffff;
+  --gray-25: #fafafa;
+  --gray-50: #f5f5f5;
+  --gray-100: #f0f0f0;
+  --gray-200: #e5e5e5;
+  --gray-300: #d4d4d4;
+  --gray-400: #a3a3a3;
+  --gray-500: #737373;
+  --gray-600: #666666;
+  --gray-700: #404040;
+  --gray-800: #262626;
+  --gray-900: #171717;
+  --gray-950: #0a0a0a;
 
-  /* Typography — Geist / Inter Fallback */
-  --font-geist: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --blue-400: #38bdf8;
+  --blue-500: #0ea5e9;
+  --blue-600: #0284c7;
+  --blue-700: #0369a1;
 
-  /* Typography — Scale */
+  --green-500: #10b981;
+  --green-600: #059669;
+  --green-700: #047857;
+
+  --amber-500: #f59e0b;
+  --amber-600: #d97706;
+  --amber-700: #b45309;
+
+  --red-500: #e7000b;
+  --red-600: #c50009;
+
+  /* ======================================================
+     2) SEMÁNTICAS — COLOR (tema claro por defecto)
+     ====================================================== */
+  color-scheme: light;
+
+  /* Superficies */
+  --bg-canvas: var(--gray-50);
+  --bg-surface: var(--gray-0);
+  --bg-surface-2: var(--gray-25);
+  --bg-inset: var(--gray-50);
+  --bg-hover: var(--gray-100);
+  --bg-overlay: rgba(10, 10, 10, 0.42);
+
+  /* Inverso (para fondos oscuros en tema claro y viceversa) */
+  --bg-inverse: var(--gray-950);
+  --txt-inverse: var(--gray-25);
+
+  /* Texto */
+  --txt-primary: var(--gray-950);
+  --txt-secondary: var(--gray-900);
+  --txt-tertiary: var(--gray-600); /* #666: ≥5:1 sobre canvas y superficie */
+  --txt-on-accent: #ffffff;
+
+  /* Bordes */
+  --border-1: var(--gray-200);
+  --border-2: var(--gray-300);
+  --border-focus: var(--gray-950);
+
+  /* Acento de interacción */
+  --accent: var(--blue-700);
+  --accent-hover: #075985;
+  --accent-soft: rgba(2, 132, 199, 0.1);
+
+  /* Estados (no comunicar SOLO con color: siempre acompañar de texto/icono) */
+  --success: var(--green-700);
+  --success-soft: rgba(4, 120, 87, 0.1);
+  --warning: var(--amber-700);
+  --warning-soft: rgba(180, 83, 9, 0.1);
+  --danger: var(--red-500);
+  --danger-soft: rgba(231, 0, 11, 0.08);
+  --info: var(--blue-700);
+  --info-soft: rgba(3, 105, 161, 0.1);
+
+  /* ======================================================
+     2) SEMÁNTICAS — TIPOGRAFÍA
+     ====================================================== */
+  --font-geist: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, monospace;
+
+  /* Escala fluida (clamp): no necesitamos saltos de media query para titulares */
   --text-caption: 12px;
   --leading-caption: 1.33;
   --tracking-caption: 0.6px;
@@ -25,65 +113,229 @@
   --text-body-lg: 16px;
   --leading-body-lg: 1.5;
 
-  --text-subheading: 18px;
-  --leading-subheading: 1.56;
+  --text-subheading: clamp(1.0625rem, 1rem + 0.3vw, 1.125rem); /* 17 → 18 */
+  --leading-subheading: 1.5;
 
-  --text-heading-sm: 24px;
-  --leading-heading-sm: 1.33;
-  --tracking-heading-sm: -0.6px;
+  --text-heading-sm: clamp(1.1875rem, 1.1rem + 0.6vw, 1.5rem); /* 19 → 24 */
+  --leading-heading-sm: 1.3;
+  --tracking-heading-sm: -0.4px;
 
-  --text-heading: 30px;
+  --text-heading: clamp(1.5rem, 1.3rem + 1.1vw, 1.875rem); /* 24 → 30 */
   --leading-heading: 1.2;
-  --tracking-heading: -0.75px;
+  --tracking-heading: -0.6px;
 
-  --text-heading-lg: 36px;
-  --leading-heading-lg: 1.11;
-  --tracking-heading-lg: -0.9px;
+  --text-heading-lg: clamp(1.75rem, 1.4rem + 1.6vw, 2.25rem); /* 28 → 36 */
+  --leading-heading-lg: 1.12;
+  --tracking-heading-lg: -0.8px;
 
-  --text-display: 48px;
-  --leading-display: 1.1;
-  --tracking-display: -2.4px;
+  --text-display: clamp(2.25rem, 1.6rem + 3vw, 3rem); /* 36 → 48 */
+  --leading-display: 1.05;
+  --tracking-display: -1.4px;
 
-  /* Typography — Weights */
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
 
-  /* Spacing */
-  --spacing-unit: 4px;
-  --spacing-4: 4px;
-  --spacing-8: 8px;
-  --spacing-12: 12px;
-  --spacing-16: 16px;
-  --spacing-20: 20px;
-  --spacing-24: 24px;
-  --spacing-32: 32px;
-  --spacing-48: 48px;
+  /* ======================================================
+     2) SEMÁNTICAS — ESPACIADO (escala base 4)
+     ====================================================== */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
 
-  /* Layout */
+  /* ======================================================
+     2) SEMÁNTICAS — RADIOS (definidos; antes varios eran 0px)
+     ====================================================== */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-2xl: 24px;
+  --radius-3xl: 28px;
+  --radius-full: 9999px;
+
+  /* ======================================================
+     2) SEMÁNTICAS — ELEVACIÓN
+     ====================================================== */
+  --shadow-1: 0 0 0 1px rgba(23, 23, 23, 0.05), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-2: 0 0 0 1px rgba(23, 23, 23, 0.06), 0 8px 24px -8px rgba(0, 0, 0, 0.14);
+  --shadow-3: 0 0 0 1px rgba(23, 23, 23, 0.08), 0 16px 40px -10px rgba(0, 0, 0, 0.22);
+
+  /* Anillo de foco visible y consistente (a11y 2.4.7 / 2.4.11) */
+  --focus-ring: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--accent);
+
+  /* ======================================================
+     2) SEMÁNTICAS — MOVIMIENTO
+     ====================================================== */
+  --dur-instant: 80ms;
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-slow: 360ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ======================================================
+     2) SEMÁNTICAS — Z-INDEX (una sola escalera)
+     ====================================================== */
+  --z-base: 1;
+  --z-peek: 900;
+  --z-dock: 1000;
+  --z-drawer: 2200;
+  --z-spotlight: 2500;
+  --z-toast: 2600;
+
+  /* ======================================================
+     2) SEMÁNTICAS — LAYOUT Y ÁREAS SEGURAS
+     ====================================================== */
   --page-max-width: 1280px;
+  --content-max: 760px;
   --card-padding: 24px;
   --card-padding-sm: 16px;
   --element-gap: 8px;
 
-  /* Border Radius */
-  --radius-small: 6px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  --dock-h: 72px;
+  --tabbar-h: 64px;
+  /* Espacio reservado al final del contenido para la navegación flotante */
+  --nav-reserve: calc(var(--dock-h) + var(--safe-bottom) + var(--space-4));
+
+  /* ======================================================
+     3) ALIAS LEGACY (compatibilidad: CSS antiguo + estilos inline)
+        No añadir usos nuevos; migrar a tokens semánticos.
+     ====================================================== */
+  --color-canvas: var(--bg-canvas);
+  --color-paper: var(--bg-surface);
+  --color-surface-alt: var(--bg-surface-2);
+  --color-ink: var(--txt-primary);
+  --color-ink-soft: var(--txt-secondary);
+  --color-mid-gray: var(--txt-tertiary);
+  --color-hairline: var(--border-1);
+  --color-ember: var(--danger);
+  --color-ember-soft: var(--danger-soft);
+
+  --surface-canvas: var(--bg-canvas);
+  --surface-sidebar: var(--bg-surface-2);
+  --surface-card: var(--bg-surface);
+  --surface-input-fill: var(--bg-inset);
+  --surface-hover: var(--bg-hover);
+
+  --spacing-unit: 4px;
+  --spacing-4: var(--space-1);
+  --spacing-8: var(--space-2);
+  --spacing-12: var(--space-3);
+  --spacing-16: var(--space-4);
+  --spacing-20: var(--space-5);
+  --spacing-24: var(--space-6);
+  --spacing-32: var(--space-8);
+  --spacing-48: var(--space-12);
+
+  --radius-small: var(--radius-sm);
   --radius-nested: 10px;
-  --radius-xl: 14px;
   --radius-badges: 18px;
   --radius-inputs: 18px;
   --radius-buttons: 18px;
-  --radius-cards: 24px;
+  --radius-cards: var(--radius-2xl);
 
-  /* Elevation & Shadows (hairline + whisper quiet) */
-  --shadow-subtle: 0 0 0 1px rgba(23, 23, 23, 0.05), 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06);
-  --shadow-floating: 0 0 0 1px rgba(23, 23, 23, 0.08), 0 12px 32px -8px rgba(0, 0, 0, 0.12);
-  --shadow-focus: 0 0 0 2px #0a0a0a;
+  --shadow-subtle: var(--shadow-1);
+  --shadow-floating: var(--shadow-3);
+  --shadow-focus: 0 0 0 2px var(--txt-primary);
+}
 
-  /* Surfaces */
-  --surface-canvas: #f5f5f5;
-  --surface-sidebar: #fafafa;
-  --surface-card: #ffffff;
-  --surface-input-fill: #f5f5f5;
-  --surface-hover: #f0f0f0;
+/* ========================================================
+   TEMA OSCURO — rediseñado por intención (no invertido)
+   Re-declara la capa semántica; los componentes heredan.
+   ======================================================== */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-canvas: #0d0f12;
+  --bg-surface: #16191f;
+  --bg-surface-2: #1c2027;
+  --bg-inset: #1c2027;
+  --bg-hover: #232a34;
+  --bg-overlay: rgba(2, 4, 8, 0.62);
+
+  --bg-inverse: #f8fafc;
+  --txt-inverse: #0a0a0a;
+
+  --txt-primary: #f8fafc;
+  --txt-secondary: #cbd5e1;
+  --txt-tertiary: #9aa8bb;
+  --txt-on-accent: #04121d;
+
+  --border-1: #2a313d;
+  --border-2: #3b4553;
+  --border-focus: #f8fafc;
+
+  --accent: var(--blue-400);
+  --accent-hover: var(--blue-500);
+  --accent-soft: rgba(56, 189, 248, 0.14);
+
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.15);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.15);
+  --danger: #ff6b61;
+  --danger-soft: rgba(255, 107, 97, 0.16);
+  --info: var(--blue-400);
+  --info-soft: rgba(56, 189, 248, 0.14);
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-2: 0 10px 28px -10px rgba(0, 0, 0, 0.6);
+  --shadow-3: 0 20px 48px -12px rgba(0, 0, 0, 0.7);
+
+  /* Alias legacy re-apuntados en oscuro */
+  --color-canvas: var(--bg-canvas);
+  --color-paper: var(--bg-surface);
+  --color-surface-alt: var(--bg-surface-2);
+  --color-ink: var(--txt-primary);
+  --color-ink-soft: var(--txt-secondary);
+  --color-mid-gray: var(--txt-tertiary);
+  --color-hairline: var(--border-1);
+  --color-ember: var(--danger);
+  --color-ember-soft: var(--danger-soft);
+  --surface-canvas: var(--bg-canvas);
+  --surface-sidebar: var(--bg-surface-2);
+  --surface-card: var(--bg-surface);
+  --surface-input-fill: var(--bg-inset);
+  --surface-hover: var(--bg-hover);
+  --shadow-subtle: var(--shadow-1);
+  --shadow-floating: var(--shadow-3);
+  --shadow-focus: 0 0 0 2px var(--txt-primary);
+}
+
+/* Antes de hidratar las preferencias: seguir al sistema operativo.
+   En cuanto el dock aplique data-theme="light|dark", esta regla deja de aplicar. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --bg-canvas: #0d0f12;
+    --bg-surface: #16191f;
+    --bg-surface-2: #1c2027;
+    --bg-inset: #1c2027;
+    --bg-hover: #232a34;
+    --txt-primary: #f8fafc;
+    --txt-secondary: #cbd5e1;
+    --txt-tertiary: #9aa8bb;
+    --border-1: #2a313d;
+    --border-2: #3b4553;
+    --accent: var(--blue-400);
+    --success: #34d399;
+    --warning: #fbbf24;
+    --danger: #ff6b61;
+    --info: var(--blue-400);
+  }
 }

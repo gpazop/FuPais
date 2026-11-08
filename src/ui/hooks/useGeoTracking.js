@@ -16,19 +16,20 @@ const DEFAULT_POSITION = { lat: 4.7110, lng: -74.0721 }; // Bogotá D.C.
 const DEFAULT_META = {
   city: "Bogotá D.C.",
   country: "Colombia",
-  accuracy: "Alta (GPS Satelital)"
+  accuracy: "Ubicación de referencia"
 };
 
 /** Zona legal derivada (misma semántica del reverseGeocode vanilla). */
 function computeLegalZone(country, destinationCountry, originCountry) {
-  const c = (country || "").toLowerCase();
+  const c = (country || "").trim().toLowerCase();
+  if (!c) return "País sin identificar";
   const dest = (destinationCountry || "").toLowerCase();
   const origin = (originCountry || "").toLowerCase();
-  if (dest && (c.includes(dest) || dest.includes(c))) {
-    return `Territorio de ${destinationCountry} — Estancia Legal Vigente`;
+  if (dest && c === dest) {
+    return `País de destino (${destinationCountry})`;
   }
-  if (origin && (c.includes(origin) || origin.includes(c))) {
-    return `País de Origen (${originCountry}) — Residencia Nacional`;
+  if (origin && c === origin) {
+    return `País de Origen (${originCountry})`;
   }
   return `Territorio Extranjero (${country}) — Fuera de tu país`;
 }
@@ -40,62 +41,62 @@ export function useGeoTracking({
 } = {}) {
   const [position, setPosition] = useState(DEFAULT_POSITION);
   const [meta, setMeta] = useState(DEFAULT_META);
-  const [legalZone, setLegalZone] = useState(
-    "Territorio Colombiano — Estancia Legal Vigente"
-  );
   const [locating, setLocating] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const selection = useRef(0);
+  const positionRequest = useRef(0);
 
   // Refs "latest": las props del viaje pueden cambiar en cualquier
   // render sin invalidar las callbacks.
-  const destRef = useRef(destinationCountry);
-  destRef.current = destinationCountry;
-  const originRef = useRef(originCountry);
-  originRef.current = originCountry;
   const notifyRef = useRef(onNotify);
   notifyRef.current = onNotify;
 
-  /** Coordenadas → ciudad/país vía puerto. Devuelve la location o null. */
-  const reverseGeocode = useCallback(async (lat, lng) => {
+  const updatePosition = useCallback(async (lat, lng, accuracy) => {
+    const request = ++positionRequest.current;
+    setPosition({ lat, lng });
+    setMeta({ city: "", country: "", accuracy });
+    setResolving(true);
     try {
       const location = await geocoding.reverseGeocode(lat, lng);
+      if (request !== positionRequest.current) return null;
       if (location) {
-        setMeta((prev) => ({
-          ...prev,
-          city: location.city || prev.city,
-          country: location.country || prev.country
-        }));
-        setLegalZone(
-          computeLegalZone(location.country, destRef.current, originRef.current)
-        );
+        setMeta({
+          city: location.city?.trim() || "",
+          country: location.country?.trim() || "",
+          accuracy
+        });
       }
       return location;
     } catch (error) {
-      // Sin conexión o backend caído: el HUD conserva lo último conocido.
       console.warn("Geocodificación falló:", error);
       return null;
+    } finally {
+      if (request === positionRequest.current) setResolving(false);
     }
   }, []);
 
   /** Posición manual (clic en el mapa o drag del marcador). */
-  const setManualPosition = useCallback(
-    async (lat, lng) => {
+  const applyManualPosition = useCallback(
+    async (lat, lng, request) => {
       const roundLat = parseFloat(Number(lat).toFixed(4));
       const roundLng = parseFloat(Number(lng).toFixed(4));
-      setPosition({ lat: roundLat, lng: roundLng });
-      setMeta((prev) => ({
-        ...prev,
-        accuracy: "Ubicación Manual (Fijada en el mapa)"
-      }));
-      const location = await reverseGeocode(roundLat, roundLng);
-      const place = location
-        ? `${location.city}, ${location.country}`
-        : `${roundLat}°, ${roundLng}°`;
+      const location = await updatePosition(roundLat, roundLng, "Ubicación manual");
+      if (request !== selection.current) return false;
+      const place = [location?.city, location?.country].filter(Boolean).join(", ");
       notifyRef.current?.(
-        `📍 Posición fijada en: ${place} (${roundLat}°, ${roundLng}°)`
+        place
+          ? `📍 Posición fijada en: ${place} (${roundLat}°, ${roundLng}°)`
+          : `📍 Posición fijada en: ${roundLat}°, ${roundLng}°`
       );
+      return true;
     },
-    [reverseGeocode]
+    [updatePosition]
   );
+
+  const setManualPosition = useCallback((lat, lng) => {
+    setLocating(false);
+    return applyManualPosition(lat, lng, ++selection.current);
+  }, [applyManualPosition]);
 
   /**
    * GPS real del navegador. Resuelve { lat, lng } | null para que el
@@ -110,21 +111,20 @@ export function useGeoTracking({
         resolve(null);
         return;
       }
+      const request = ++selection.current;
       setLocating(true);
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
+          if (request !== selection.current) return resolve(null);
           const lat = parseFloat(pos.coords.latitude.toFixed(4));
           const lng = parseFloat(pos.coords.longitude.toFixed(4));
-          setMeta((prev) => ({
-            ...prev,
-            accuracy: `GPS Satelital en Vivo ±${Math.round(pos.coords.accuracy)}m`
-          }));
-          setPosition({ lat, lng });
-          await reverseGeocode(lat, lng);
+          await updatePosition(lat, lng, `GPS del dispositivo ±${Math.round(pos.coords.accuracy)}m`);
+          if (request !== selection.current) return resolve(null);
           setLocating(false);
           resolve({ lat, lng });
         },
         (err) => {
+          if (request !== selection.current) return resolve(null);
           setLocating(false);
           notifyRef.current?.(
             `GPS no disponible (${err.message}). Haz clic en el mapa para fijar tu posición.`
@@ -134,35 +134,40 @@ export function useGeoTracking({
         { timeout: 7000, enableHighAccuracy: true }
       );
     });
-  }, [reverseGeocode]);
+  }, [updatePosition]);
 
   /** Búsqueda de lugar → coordenadas (y posición manual geocodificada). */
   const findPlace = useCallback(
     async (query) => {
       const q = (query || "").trim();
       if (!q) return null;
+      const request = ++selection.current;
+      setLocating(false);
       try {
         const place = await geocoding.searchPlace(q);
+        if (request !== selection.current) return null;
         if (!place) {
           notifyRef.current?.(`No se encontró el lugar "${q}"`);
           return null;
         }
-        await setManualPosition(place.lat, place.lng);
-        return place;
+        const applied = await applyManualPosition(place.lat, place.lng, request);
+        return applied ? place : null;
       } catch (error) {
+        if (request !== selection.current) return null;
         console.warn("Búsqueda de lugar falló:", error);
         notifyRef.current?.(`No se pudo buscar "${q}" en este momento.`);
         return null;
       }
     },
-    [setManualPosition]
+    [applyManualPosition]
   );
 
   return {
     position,
     meta,
-    legalZone,
+    legalZone: computeLegalZone(meta.country, destinationCountry, originCountry),
     locating,
+    resolving,
     locate,
     setManualPosition,
     findPlace

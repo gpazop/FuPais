@@ -5,7 +5,7 @@
 // Los componentes UI viven en src/ui/components/.
 // ========================================================
 
-import { useState, useRef, useCallback, useMemo } from "react";
+import { lazy, Suspense, useState, useRef, useCallback, useMemo, useLayoutEffect } from "react";
 import { MIGRATION_PRESETS } from "../data/migrationPresets.js";
 import {
   formatDateISO,
@@ -32,7 +32,7 @@ import useVaultFiles from "./hooks/useVaultFiles.js";
 import useDockAudio from "./hooks/useDockAudio.js";
 import ProceduresList from "./components/ProceduresList.jsx";
 import CountryCards from "./components/CountryCards.jsx";
-import Map from "./components/map/Map.jsx";
+import AppErrorBoundary from "./components/AppErrorBoundary.jsx";
 import GpsHud from "./components/map/GpsHud.jsx";
 import MapSearch from "./components/map/MapSearch.jsx";
 import MapLayerSwitcher from "./components/map/MapLayerSwitcher.jsx";
@@ -41,6 +41,8 @@ import ConfigModal from "./components/ConfigModal.jsx";
 import DayModal from "./components/DayModal.jsx";
 import Dock from "./components/dock/Dock.jsx";
 import useDockSettings from "./hooks/useDockSettings.js";
+
+const Map = lazy(() => import("./components/map/Map.jsx"));
 
 export default function App() {
   // --- Estado persistente: hydrate + guardado automático (usePersistedState) ---
@@ -67,6 +69,12 @@ export default function App() {
   const { settings: dockSettings, updateSettings: updateDockSettings } =
     useDockSettings();
   const activeTab = dockSettings.activeTab || "inicio";
+  const [mapVisited, setMapVisited] = useState(false);
+  const mapActive = Boolean(state) && activeTab === "mapa";
+
+  useLayoutEffect(() => {
+    if (mapActive) setMapVisited(true);
+  }, [mapActive]);
 
   // --- Bóveda de documentos (vista Archivos) + sonidos de UI ---
   // Reutiliza useDockAudio respetando el ajuste soundEnabled del dock.
@@ -238,10 +246,33 @@ export default function App() {
   const handleTabChange = useCallback(
     (tabId) => {
       updateDockSettings({ activeTab: tabId });
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: "instant" });
     },
     [updateDockSettings]
   );
+
+  const calendarSection = useRef(null);
+  const calendarRequested = useRef(false);
+  const focusCalendar = useCallback(() => {
+    const section = calendarSection.current;
+    if (!section) return;
+    calendarRequested.current = false;
+    section.focus({ preventScroll: true });
+    section.scrollIntoView?.({ block: "start" });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (activeTab === "inicio" && calendarRequested.current) focusCalendar();
+  }, [activeTab, metrics, focusCalendar]);
+
+  const openCalendar = useCallback(() => {
+    if (activeTab === "inicio") {
+      focusCalendar();
+    } else {
+      calendarRequested.current = true;
+      handleTabChange("inicio");
+    }
+  }, [activeTab, focusCalendar, handleTabChange]);
 
   // --- Visibilidad del dock (persistida en la clave legacy) ---
   const handleHiddenChange = useCallback(
@@ -313,6 +344,7 @@ export default function App() {
         presetId={state?.presetId ?? "colombia_intercambio"}
         onPresetChange={applyPreset}
         onOpenConfig={openConfigModal}
+        onOpenSearch={() => setSpotlightOpen(true)}
         statusBadge={metrics?.statusBadge ?? { label: "Verificando...", type: "badge-solid" }}
       />
 
@@ -400,13 +432,16 @@ export default function App() {
             </section>
 
             <main className="dashboard-grid">
-              <Calendar
-                metrics={metrics}
-                customEvents={state.customEvents ?? []}
-                onDateSelect={openDayInspector}
-              />
+              <a className="btn btn-outline header-mobile-only" href="#tramites">Ver trámites</a>
+              <section id="calendario" ref={calendarSection} tabIndex={-1} aria-label="Calendario de estancia">
+                <Calendar
+                  metrics={metrics}
+                  customEvents={state.customEvents ?? []}
+                  onDateSelect={openDayInspector}
+                />
+              </section>
 
-              <aside style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-24)" }}>
+              <aside id="tramites" tabIndex={-1} style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-24)" }}>
                 <div className="card">
                   <div className="card-header">
                     <div className="card-header-inner">
@@ -433,7 +468,7 @@ export default function App() {
                 <div>
                   <h2 className="text-heading-sm">Radar Migratorio & Países Disponibles</h2>
                   <p className="text-caption" style={{ textTransform: "none", marginTop: 2 }}>
-                    Rastreo satelital GPS en tiempo real de tu ubicación actual y exploración de países con normativas migratorias activas.
+                    Consulta tu ubicación o explora los países disponibles.
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -446,25 +481,39 @@ export default function App() {
                   {geo.locating ? "Localizando..." : "Ubicar mi GPS Actual"}
                 </button>
                   <Badge variant="solid" style={{ backgroundColor: "#0ea5e9", color: "#fff" }}>
-                    Live Tracker
+                    Ubicación
                   </Badge>
                 </div>
               </div>
-              {/* Mapa + barra flotante (búsqueda y capas) sobre contenedor relativo */}
-              <div style={{ position: "relative" }}>
-                <Map
-                  presetId={state?.presetId || null}
-                  active={activeTab === "mapa"}
-                  layerKey={mapLayer}
-                  position={geo.position}
-                  flyRequest={flyRequest}
-                  onApplyPreset={applyPreset}
-                  onPickLocation={geo.setManualPosition}
-                />
+              <div className="map-controls-layout">
                 <div className="map-floating-bar">
                   <MapSearch onSearch={handleMapSearch} />
                   <MapLayerSwitcher value={mapLayer} onChange={setMapLayer} />
                 </div>
+                {(mapActive || mapVisited) && (
+                  <AppErrorBoundary fallback={
+                    <div className="map-loading-panel" role="alert">
+                      <p>No se pudo cargar el mapa.</p>
+                      <button type="button" className="btn btn-outline" onClick={() => window.location.reload()}>
+                        Recargar FuPais
+                      </button>
+                    </div>
+                  }>
+                    <Suspense fallback={
+                      <div className="map-loading-panel" role="status">Cargando mapa…</div>
+                    }>
+                      <Map
+                        presetId={state?.presetId || null}
+                        active={mapActive}
+                        layerKey={mapLayer}
+                        position={geo.position}
+                        flyRequest={flyRequest}
+                        onApplyPreset={applyPreset}
+                        onPickLocation={geo.setManualPosition}
+                      />
+                    </Suspense>
+                  </AppErrorBoundary>
+                )}
               </div>
 
               <GpsHud
@@ -472,6 +521,7 @@ export default function App() {
                 meta={geo.meta}
                 legalZone={geo.legalZone}
                 locating={geo.locating}
+                resolving={geo.resolving}
               />
 
               <CountryCards
@@ -508,6 +558,7 @@ export default function App() {
       {/* Dock declarativo 100% controlado (Sprint 2) */}
       <Dock
         activeTab={activeTab}
+        onOpenCalendar={openCalendar}
         onTabChange={handleTabChange}
         position={dockSettings.position}
         theme={dockSettings.theme}

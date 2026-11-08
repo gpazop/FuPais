@@ -7,13 +7,24 @@
 // (que estaban inertes) quedan cableados a mapa/spotlight.
 // ========================================================
 
+import { useDialogFocus } from "../../hooks/useDialogFocus.js";
+
+const SECONDARY_VIEWS = [
+  ["archivos", "Bóveda"],
+  ["perfil", "Perfil"],
+  ["configuracion", "Configuración"]
+];
+
 export default function Drawer({
   open,
   onClose,
   activeDestination,
+  activeTab,
+  onTab,
   onOpenMap,
   onOpenSpotlight
 }) {
+  const dialogRef = useDialogFocus(open, onClose);
   if (!open) return null;
 
   return (
@@ -23,10 +34,11 @@ export default function Drawer({
         if (e.target === e.currentTarget) onClose?.();
       }}
     >
-      <aside className="drawer-panel">
+      <aside className="drawer-panel" ref={dialogRef} role="dialog" aria-modal="true"
+        aria-labelledby="drawer-title" data-dialog-shortcut="m" tabIndex={-1}>
         <div className="drawer-header">
           <div>
-            <h3 className="text-subheading">Centro de Control</h3>
+            <h3 id="drawer-title" className="text-subheading">Centro de Control</h3>
             <p className="text-caption" style={{ textTransform: "none" }}>
               Accesos rápidos y emergencias
             </p>
@@ -35,6 +47,19 @@ export default function Drawer({
             ✕
           </button>
         </div>
+
+        <nav className="drawer-view-links" aria-label="Más vistas">
+          {SECONDARY_VIEWS.map(([key, label]) => (
+            <button key={key} type="button" className="btn btn-outline"
+              aria-current={activeTab === key ? "page" : undefined}
+              onClick={() => {
+                onClose?.();
+                onTab?.(key);
+              }}>
+              {label}
+            </button>
+          ))}
+        </nav>
 
         {/* Quick Switch Country */}
         <div className="drawer-section-title">País de Destino Activo</div>

@@ -16,7 +16,8 @@ const DOCK_NAV = [
   {
     key: "inicio",
     type: "tab",
-    label: "Inicio",
+    label: "Resumen",
+    mobileLabel: "Resumen",
     icon: (
       <>
         <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -25,9 +26,22 @@ const DOCK_NAV = [
     )
   },
   {
+    key: "calendar",
+    type: "action",
+    label: "Calendario",
+    mobileLabel: "Calendario",
+    icon: (
+      <>
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M3 10h18M8 3v4m8-4v4" />
+      </>
+    )
+  },
+  {
     key: "mapa",
     type: "tab",
     label: "Mapa y Seguimiento",
+    mobileLabel: "Mapa",
     badge: { text: "GPS", pulse: true, title: "Rastreo GPS en vivo" },
     icon: (
       <>
@@ -83,7 +97,8 @@ const DOCK_NAV = [
   {
     key: "drawer",
     type: "action",
-    label: "Menú",
+    label: "Más",
+    mobileLabel: "Más",
     icon: (
       <>
         <line x1="3" y1="12" x2="21" y2="12" />
@@ -106,7 +121,7 @@ const ITEM_INDEX = (() => {
   const map = new Map();
   let n = 0;
   DOCK_NAV.forEach((item) => {
-    if (item.key !== "divider") {
+    if (item.key !== "divider" && item.key !== "calendar") {
       map.set(item.key, n);
       n += 1;
     }
@@ -122,6 +137,8 @@ export default function DockBar({
   onTabChange,
   onOpenSpotlight,
   onOpenDrawer,
+  onOpenCalendar,
+  drawerOpen,
   onToggleHide
 }) {
   const [hoveredKey, setHoveredKey] = useState(null);
@@ -135,11 +152,13 @@ export default function DockBar({
         onOpenSpotlight?.();
       } else if (item.key === "drawer") {
         onOpenDrawer?.();
+      } else if (item.key === "calendar") {
+        onOpenCalendar?.();
       } else if (item.key === "hide") {
         onToggleHide?.();
       }
     },
-    [play, onTabChange, onOpenSpotlight, onOpenDrawer, onToggleHide]
+    [play, onTabChange, onOpenSpotlight, onOpenDrawer, onOpenCalendar, onToggleHide]
   );
 
   return DOCK_NAV.map((item) => {
@@ -159,6 +178,8 @@ export default function DockBar({
         tabId={isTab ? item.key : undefined}
         action={isTab ? undefined : item.key}
         label={item.label}
+        mobileLabel={item.mobileLabel}
+        expanded={item.key === "drawer" ? drawerOpen : undefined}
         icon={item.icon}
         active={isTab && activeTab === item.key}
         neighbor={neighbor}

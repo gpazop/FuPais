@@ -6,19 +6,29 @@
 // App conecta con useGeoTracking.findPlace (puerto de geocoding).
 // ========================================================
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 export default function MapSearch({ onSearch }) {
   const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const pending = useRef(false);
 
-  const submit = () => {
+  const submit = async (event) => {
+    event.preventDefault();
     const q = query.trim();
-    if (!q) return;
-    onSearch?.(q);
+    if (!q || pending.current) return;
+    pending.current = true;
+    setSearching(true);
+    try {
+      await onSearch?.(q);
+    } finally {
+      pending.current = false;
+      setSearching(false);
+    }
   };
 
   return (
-    <div className="map-search-box">
+    <form className="map-search-box" onSubmit={submit}>
       <svg
         className="icon"
         viewBox="0 0 24 24"
@@ -32,19 +42,16 @@ export default function MapSearch({ onSearch }) {
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") submit();
-        }}
         placeholder="Buscar ciudad, dirección o lugar..."
         aria-label="Buscar lugar en el mapa"
       />
       <button
         className="btn btn-primary btn-sm"
-        onClick={submit}
-        aria-label="Buscar lugar"
+        type="submit"
+        disabled={searching || !query.trim()}
       >
-        Buscar
+        <span role="status">{searching ? "Buscando…" : "Buscar"}</span>
       </button>
-    </div>
+    </form>
   );
 }

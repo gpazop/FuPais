@@ -39,6 +39,7 @@ export default class AppErrorBoundary extends Component {
   render() {
     const { error } = this.state;
     if (!error) return this.props.children;
+    if (this.props.fallback) return this.props.fallback;
 
     return (
       <div
