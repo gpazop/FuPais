@@ -18,7 +18,7 @@
 // ========================================================
 
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within, waitFor } from "@testing-library/react";
 
 vi.mock("../src/ui/components/map/Map.jsx", () => ({
   default: () => <div id="real-google-map" data-testid="map-stub" />
@@ -29,6 +29,7 @@ import AppErrorBoundary from "../src/ui/components/AppErrorBoundary.jsx";
 import DayModal from "../src/ui/components/DayModal.jsx";
 import { STORAGE_KEY } from "../src/state/store.js";
 import { buildDashboard } from "../src/domain/dashboard.js";
+import { DOCK_STORAGE_KEY } from "../src/components/dock/constants.js";
 
 afterEach(() => {
   cleanup();
@@ -37,6 +38,45 @@ afterEach(() => {
 });
 
 describe("<App /> (smoke integral)", () => {
+  it("conecta Buscar, Más y el acceso al calendario desde otra vista", async () => {
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    render(<App />);
+    await screen.findByText("Días Fuera de tu País");
+
+    const search = screen.getByLabelText("Buscar países, trámites o fechas");
+    search.focus();
+    fireEvent.click(search);
+    const spotlight = screen.getByRole("dialog", { name: "Spotlight" });
+    fireEvent.keyDown(within(spotlight).getByRole("textbox"), { key: "Escape" });
+    expect(document.activeElement).toBe(search);
+
+    const more = screen.getByLabelText("Más");
+    fireEvent.click(more);
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+    const drawer = screen.getByRole("dialog", { name: "Centro de Control" });
+    fireEvent.click(within(drawer).getByRole("button", { name: "Bóveda" }));
+    expect(document.getElementById("view-archivos").classList.contains("active")).toBe(true);
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+
+    fireEvent.click(screen.getByLabelText("Calendario"));
+    expect(document.getElementById("view-inicio").classList.contains("active")).toBe(true);
+    expect(document.activeElement).toBe(document.getElementById("calendario"));
+  }, 10000);
+
+  it("persiste el tema elegido y lo aplica al volver a montar la aplicación", async () => {
+    const { unmount } = render(<App />);
+    await screen.findByText("Días Fuera de tu País");
+    fireEvent.click(screen.getByRole("button", { name: "Oscuro" }));
+    await waitFor(() => {
+      expect(JSON.parse(localStorage.getItem(DOCK_STORAGE_KEY)).theme).toBe("dark");
+    });
+    unmount();
+    render(<App />);
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe("dark"));
+    fireEvent.click(screen.getByRole("button", { name: "Claro" }));
+    expect(document.documentElement.dataset.theme).toBe("light");
+  });
+
   it("monta el controlador completo y renderiza la vista inicio", async () => {
     render(<App />);
 
@@ -54,9 +94,24 @@ describe("<App /> (smoke integral)", () => {
       expect(document.getElementById(id)).toBeTruthy();
     }
     expect(document.getElementById("view-inicio").className).toContain("active");
-    expect(document.getElementById("real-google-map")).toBeTruthy();
+    expect(screen.queryByTestId("map-stub")).toBeNull();
     expect(document.getElementById("fupais-dock")).toBeTruthy();
   });
+
+  it("monta el mapa al abrir su vista y conserva la instancia al volver", async () => {
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    render(<App />);
+    await screen.findByText("Días Fuera de tu País");
+    expect(screen.queryByTestId("map-stub")).toBeNull();
+
+    const mapButton = screen.getByLabelText("Mapa y Seguimiento");
+    fireEvent.click(mapButton);
+    const map = await screen.findByTestId("map-stub");
+    fireEvent.click(screen.getByLabelText("Resumen"));
+    expect(screen.getByTestId("map-stub")).toBe(map);
+    fireEvent.click(mapButton);
+    expect(screen.getByTestId("map-stub")).toBe(map);
+  }, 10000);
 
   it("no se queda en blanco con un estado persistido parcial (sin completedProcedures/customEvents)", async () => {
     localStorage.setItem(
@@ -166,5 +221,36 @@ describe("<DayModal /> (regresión: orden de hooks)", () => {
 
     expect(document.getElementById("day-modal")).toBeTruthy();
     expect(screen.getByText(/fuera de tu país/)).toBeTruthy();
+  });
+
+  it("mantiene el foco en el detalle, permite guardar con teclado y devuelve el foco al cerrar", () => {
+    const onAddEvent = vi.fn();
+    const onClose = vi.fn(() => rerender(content(false)));
+    const content = (open) => (
+      <>
+        <button>Fecha seleccionada</button>
+        <DayModal {...props} open={open} onClose={onClose} onAddEvent={onAddEvent} />
+      </>
+    );
+    const { rerender } = render(content(false));
+    const trigger = screen.getByRole("button", { name: "Fecha seleccionada" });
+    trigger.focus();
+    rerender(content(true));
+    const dialog = screen.getByRole("dialog");
+    const buttons = within(dialog).getAllByRole("button");
+    const first = buttons[0];
+    const last = buttons.at(-1);
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(first, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+    fireEvent.keyDown(last, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+    const input = within(dialog).getByRole("textbox", { name: /Agregar recordatorio/ });
+    fireEvent.change(input, { target: { value: "Entregar documentos" } });
+    fireEvent.submit(input.form);
+    expect(onAddEvent).toHaveBeenCalledWith("Entregar documentos", props.dateStr);
+    fireEvent.keyDown(first, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
   });
 });

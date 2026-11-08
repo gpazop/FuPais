@@ -1,8 +1,8 @@
 // ========================================================
 // FUPAIS — Map (react-leaflet v5, Sprint 3)
 // Mapa 100% controlado y SIN REMONTAR:
-//   - MapContainer recibe center/zoom SOLO iniciales (constantes);
-//     jamás se derivan del preset ni de la posición.
+//   - MapContainer aplica center/zoom al montar. El centro inicial usa
+//     el preset activo y los cambios posteriores pasan por MapController.
 //   - API v5 correcta: instancia vía useMapEvents (no `onCreate`, que
 //     no existe), markers con eventHandlers (no `onClick`), Popup con
 //     estilos objeto (no strings) — mata el hallazgo H5.
@@ -52,8 +52,7 @@ function MapController({ presetId, active, flyRequest, onPickLocation }) {
   const lastFlyKeyRef = useRef(null);
 
   // Cambio de preset (Header / pin / tarjeta) → UN solo vuelo.
-  // El primer presetId conocido NO vuela (paridad con el arranque
-  // vanilla, cuyo mapa centraba en la posición por defecto).
+  // El primer presetId conocido no vuela: MapContainer ya usa su centro.
   useEffect(() => {
     if (!presetId) return undefined;
     if (prevPresetRef.current === null) {
@@ -105,15 +104,9 @@ function Map({
   return (
     <MapContainer
       id="real-google-map"
-      center={INITIAL_CENTER}
+      center={PRESET_COORDS[presetId] ?? INITIAL_CENTER}
       zoom={6}
       zoomControl={true}
-      style={{
-        height: 520,
-        width: "100%",
-        borderRadius: "var(--radius-2xl)",
-        zIndex: 1
-      }}
     >
       <MapController
         presetId={presetId}

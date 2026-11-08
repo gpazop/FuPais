@@ -36,6 +36,71 @@ function mockGeolocation(getCurrentPosition) {
 }
 
 describe("useGeoTracking", () => {
+  it("identifica la posición inicial como referencia sin afirmar vigencia", () => {
+    const { result } = renderHook(() => useGeoTracking({ destinationCountry: "Colombia" }));
+    expect(result.current.meta.accuracy).toBe("Ubicación de referencia");
+    expect(result.current.legalZone).toBe("País de destino (Colombia)");
+  });
+
+  it.each([null, { city: "Ciudad nueva", country: "" }])(
+    "descarta el país anterior si la nueva respuesta es %j",
+    async (location) => {
+      setGeocodingAdapter({
+        reverseGeocode: vi.fn().mockResolvedValue(location),
+        searchPlace: vi.fn()
+      });
+      const { result } = renderHook(() => useGeoTracking({ destinationCountry: "Colombia" }));
+      await act(() => result.current.setManualPosition(1, 2));
+      expect(result.current.meta.city).toBe(location?.city || "");
+      expect(result.current.meta.country).toBe("");
+      expect(result.current.legalZone).toBe("País sin identificar");
+      expect(result.current.resolving).toBe(false);
+    }
+  );
+
+  it("ignora una geocodificación inversa anterior que termina después de la última selección", async () => {
+    let finishOld;
+    setGeocodingAdapter({
+      reverseGeocode: vi.fn()
+        .mockImplementationOnce(() => new Promise((resolve) => { finishOld = resolve; }))
+        .mockResolvedValueOnce({ city: "Lima", country: "Perú" }),
+      searchPlace: vi.fn()
+    });
+    const onNotify = vi.fn();
+    const { result } = renderHook(() => useGeoTracking({ onNotify }));
+    let oldRequest;
+    act(() => { oldRequest = result.current.setManualPosition(1, 2); });
+    expect(result.current.resolving).toBe(true);
+    expect(result.current.meta.city).toBe("");
+    await act(() => result.current.setManualPosition(3, 4));
+    await act(async () => {
+      finishOld({ city: "Bogotá", country: "Colombia" });
+      await oldRequest;
+    });
+    expect(result.current.position).toEqual({ lat: 3, lng: 4 });
+    expect(result.current.meta.city).toBe("Lima");
+    expect(onNotify).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignora una respuesta GPS tardía después de fijar una posición manual", async () => {
+    let finishGps;
+    mockGeolocation((success) => { finishGps = success; });
+    setGeocodingAdapter({
+      reverseGeocode: vi.fn().mockResolvedValue(null),
+      searchPlace: vi.fn()
+    });
+    const { result } = renderHook(() => useGeoTracking());
+    let gpsRequest;
+    act(() => { gpsRequest = result.current.locate(); });
+    await act(() => result.current.setManualPosition(3, 4));
+    await act(async () => {
+      finishGps({ coords: { latitude: 1, longitude: 2, accuracy: 8 } });
+      expect(await gpsRequest).toBeNull();
+    });
+    expect(result.current.position).toEqual({ lat: 3, lng: 4 });
+    expect(result.current.locating).toBe(false);
+  });
+
   it("posición manual → reverse geocode vía el puerto y zona legal de origen", async () => {
     setGeocodingAdapter({
       reverseGeocode: vi.fn().mockResolvedValue({ city: "Lima", country: "Perú" }),

@@ -118,6 +118,20 @@ describe("<Calendar /> (RTL)", () => {
 
   afterEach(cleanup);
 
+  it("ofrece una parada de Tab y permite recorrer y activar fechas con el teclado", () => {
+    const onDateSelect = vi.fn();
+    const { container } = render(<Calendar metrics={metrics} onDateSelect={onDateSelect} />);
+    const days = Array.from(container.querySelectorAll("[data-date]"));
+    const [today, tomorrow] = days;
+    expect(days.filter((day) => day.tabIndex === 0)).toEqual([today]);
+    act(() => today.focus());
+    fireEvent.keyDown(today, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(tomorrow);
+    expect(days.filter((day) => day.tabIndex === 0)).toEqual([tomorrow]);
+    fireEvent.keyDown(tomorrow, { key: "Enter" });
+    expect(onDateSelect).toHaveBeenCalledWith("2026-11-02");
+  });
+
   it("renderiza el mes activo y navega prev/next/Hoy", () => {
     render(<Calendar metrics={metrics} customEvents={[]} onDateSelect={vi.fn()} />);
     expect(screen.getByText("Noviembre 2026")).toBeTruthy();

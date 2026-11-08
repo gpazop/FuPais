@@ -1,3 +1,4 @@
+import { useDialogFocus } from "../hooks/useDialogFocus.js";
 // ========================================================
 // FUPAIS — DayModal
 // Modal "Detalle del Día Inspeccionado" como componente
@@ -5,7 +6,7 @@
 // DOM en openDayInspector.
 // ========================================================
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import Badge from "./Badge.jsx";
 import {
   formatDateISO,
@@ -25,21 +26,7 @@ export default function DayModal({
 }) {
   const [newEventTitle, setNewEventTitle] = useState("");
 
-  // Cerrar modal con tecla Escape.
-  // IMPORTANTE: este useEffect va ANTES del early return de abajo. Un hook
-  // después de un `return` rompe el orden de hooks entre el render cerrado
-  // (1 hook) y el abierto (2 hooks): React lanzaba el error #310
-  // ("Rendered more hooks than during the previous render") al pulsar un día
-  // y el modal nunca llegaba a pintarse. Regla de hooks: todos los hooks
-  // siempre, y los returns después.
-  useEffect(() => {
-    if (!open) return;
-    const onKeydown = (e) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeydown);
-    return () => window.removeEventListener("keydown", onKeydown);
-  }, [open, onClose]);
+  const dialogRef = useDialogFocus(open, onClose);
 
   if (!open) return null;
 
@@ -70,7 +57,7 @@ export default function DayModal({
 
   return (
     <div className="modal-overlay active" id="day-modal">
-      <div className="modal-card">
+      <div className="modal-card" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="day-modal-title" tabIndex={-1}>
         <div className="modal-header">
           <div style={{ display: "flex", flexDirection: "column" }}>
             <span className="text-caption">Inspección de Fecha</span>
@@ -158,11 +145,12 @@ export default function DayModal({
               )}
 
               <div style={{ marginTop: 8 }}>
-                <div className="input-label">Agregar recordatorio para este día:</div>
+                <label className="input-label" htmlFor="day-event-title">Agregar recordatorio para este día:</label>
                 <form onSubmit={handleAddEvent} style={{ display: "flex", gap: 8, marginTop: 6 }}>
                   <input
                     type="text"
                     className="input"
+                    id="day-event-title"
                     placeholder="Ej. Pagar tasa, llevar carta a decanatura..."
                     value={newEventTitle}
                     onChange={(e) => setNewEventTitle(e.target.value)}

@@ -31,6 +31,8 @@ export function useDockShortcuts({
     const onKeyDown = (e) => {
       if (!(e.metaKey || e.ctrlKey)) return;
       const key = e.key.toLowerCase();
+      const dialog = document.activeElement?.closest('[aria-modal="true"]');
+      if (dialog && dialog.dataset.dialogShortcut !== key) return;
       if (key === "k") {
         e.preventDefault();
         handlersRef.current.onToggleSpotlight?.();

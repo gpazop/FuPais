@@ -1,3 +1,4 @@
+import { useDialogFocus } from "../hooks/useDialogFocus.js";
 // ========================================================
 // FUPAIS — ConfigModal
 // Modal "Ajustar Fechas y Perfil de Viaje" como componente
@@ -84,15 +85,7 @@ export default function ConfigModal({
     );
   }, [duration, entryDateStr]);
 
-  // Cerrar modal con tecla Escape
-  useEffect(() => {
-    if (!open) return;
-    const onKeydown = (e) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeydown);
-    return () => window.removeEventListener("keydown", onKeydown);
-  }, [open, onClose]);
+  const dialogRef = useDialogFocus(open, onClose);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -109,9 +102,9 @@ export default function ConfigModal({
 
   return (
     <div className="modal-overlay active" id="config-modal">
-      <div className="modal-card">
+      <div className="modal-card" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="config-modal-title" tabIndex={-1}>
         <div className="modal-header">
-          <h3 className="text-heading-sm" style={{ fontSize: 20 }}>
+          <h3 id="config-modal-title" className="text-heading-sm" style={{ fontSize: 20 }}>
             Ajustar Fechas y Perfil de Viaje
           </h3>
           <button

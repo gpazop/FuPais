@@ -10,6 +10,8 @@ export default function DockItem({
   tabId,
   action,
   label,
+  mobileLabel,
+  expanded,
   icon,
   active = false,
   neighbor = false,
@@ -31,6 +33,7 @@ export default function DockItem({
       title={label}
       aria-label={label}
       aria-current={tabId && active ? "page" : undefined}
+      aria-expanded={expanded}
       onMouseEnter={onMouseEnterItem}
       onMouseLeave={onMouseLeaveItem}
       onClick={onClick}
@@ -50,6 +53,7 @@ export default function DockItem({
       ) : null}
       {showDot ? <span className="dock-dot"></span> : null}
       <span className="dock-tooltip">{label}</span>
+      {mobileLabel && <span className="dock-mobile-label" aria-hidden="true">{mobileLabel}</span>}
     </button>
   );
 }

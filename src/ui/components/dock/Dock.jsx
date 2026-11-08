@@ -22,10 +22,11 @@ import useAutoHide from "../../hooks/useAutoHide.js";
 function Dock({
   // Navegación (controlada por App)
   activeTab,
+  onOpenCalendar,
   onTabChange,
   // Ajustes hidratados de fupais_dock_preferences_v1
   position = "bottom",
-  theme = "light",
+  theme = "system",
   magnify = true,
   autoHide = false,
   soundEnabled = true,
@@ -46,12 +47,35 @@ function Dock({
   const play = useDockAudio(soundEnabled);
 
   // --- Chrome global de ajustes (antes: applySettingsToUI) ---
+  // Tema: "system" | "light" | "dark". Se resuelve SIEMPRE a un data-theme
+  // explícito. "system" sigue la preferencia del sistema operativo y
+  // reacciona en vivo a sus cambios. jsdom no implementa matchMedia, así que
+  // se degrada a "light" sin romper las pruebas.
   useEffect(() => {
-    if (theme === "dark") {
-      document.documentElement.setAttribute("data-theme", "dark");
-    } else {
-      document.documentElement.removeAttribute("data-theme");
+    const root = document.documentElement;
+    const darkQuery =
+      typeof window !== "undefined" && typeof window.matchMedia === "function"
+        ? window.matchMedia("(prefers-color-scheme: dark)")
+        : null;
+
+    const apply = () => {
+      const resolved =
+        theme === "system"
+          ? darkQuery?.matches
+            ? "dark"
+            : "light"
+          : theme === "dark"
+            ? "dark"
+            : "light";
+      root.setAttribute("data-theme", resolved);
+    };
+
+    apply();
+    if (theme === "system" && darkQuery?.addEventListener) {
+      darkQuery.addEventListener("change", apply);
+      return () => darkQuery.removeEventListener("change", apply);
     }
+    return undefined;
   }, [theme]);
 
   useEffect(() => {
@@ -130,15 +154,19 @@ function Dock({
           onTabChange={handleTabChange}
           onOpenSpotlight={toggleSpotlight}
           onOpenDrawer={toggleDrawer}
+          onOpenCalendar={onOpenCalendar}
+          drawerOpen={drawerOpen}
           onToggleHide={toggleHide}
         />
       </nav>
 
-      {/* SEÑAL FLOTANTE / PEEK HANDLE */}
-      <div
+      {/* SEÑAL FLOTANTE / PEEK HANDLE — <button> real para teclado y lectores */}
+      <button
+        type="button"
         className={`dock-peek-handle handle-${position}`}
         id="dock-peek-trigger"
         title="Clic para mostrar la Barra"
+        aria-label="Mostrar barra de navegación"
         style={{ opacity: isHidden ? 1 : 0.4 }}
         onClick={() => {
           play(1100, "triangle", 0.06);
@@ -148,10 +176,10 @@ function Dock({
           if (autoHide) showDock();
         }}
       >
-        <span className="handle-live-dot"></span>
-        <span className="handle-pill-line"></span>
+        <span className="handle-live-dot" aria-hidden="true"></span>
+        <span className="handle-pill-line" aria-hidden="true"></span>
         <span className="handle-text-tip">Abrir</span>
-      </div>
+      </button>
 
       {/* SPOTLIGHT SEARCH (Cmd+K) */}
       <Spotlight
@@ -167,6 +195,8 @@ function Dock({
         open={drawerOpen}
         onClose={() => onDrawerChange?.(false)}
         activeDestination={activeDestination}
+        activeTab={activeTab}
+        onTab={handleTabChange}
         onOpenMap={() => {
           onDrawerChange?.(false);
           handleTabChange("mapa");

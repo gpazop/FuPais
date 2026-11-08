@@ -9,6 +9,7 @@
 // ========================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useDialogFocus } from "../../hooks/useDialogFocus.js";
 import { MIGRATION_PRESETS } from "../../../data/migrationPresets.js";
 import { FLAG_BY_COUNTRY } from "../../../components/dock/constants.js";
 
@@ -107,10 +108,10 @@ export default function Spotlight({
     if (open) {
       setQuery("");
       setActiveIndex(0);
-      requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [open]);
 
+  const dialogRef = useDialogFocus(open, onClose, inputRef);
   if (!open) return null;
 
   const runItem = (item) => {
@@ -120,11 +121,10 @@ export default function Spotlight({
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === "Escape") {
-      onClose?.();
-    } else if (e.key === "ArrowDown") {
+    if (e.isComposing) return;
+    if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+      setActiveIndex((i) => Math.min(i + 1, Math.max(0, filtered.length - 1)));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIndex((i) => Math.max(i - 1, 0));
@@ -140,7 +140,8 @@ export default function Spotlight({
         if (e.target === e.currentTarget) onClose?.();
       }}
     >
-      <div className="spotlight-box">
+      <div className="spotlight-box" ref={dialogRef} role="dialog" aria-modal="true"
+        aria-label="Spotlight" data-dialog-shortcut="k" tabIndex={-1}>
         <div className="spotlight-search-header">
           <svg
             className="icon"
@@ -165,9 +166,8 @@ export default function Spotlight({
             onKeyDown={handleKeyDown}
             aria-label="Búsqueda universal"
           />
-          <span className="badge badge-outline" style={{ fontSize: 11 }}>
-            ESC para salir
-          </span>
+          <button type="button" className="btn btn-outline btn-sm" onClick={onClose}
+            aria-label="Cerrar Spotlight">✕</button>
         </div>
 
         <div className="spotlight-results">
@@ -184,7 +184,8 @@ export default function Spotlight({
             </div>
           ) : (
             filtered.map((it, idx) => (
-              <div
+              <button
+                type="button"
                 key={it.key}
                 className={
                   idx === activeIndex
@@ -194,30 +195,31 @@ export default function Spotlight({
                 onMouseEnter={() => setActiveIndex(idx)}
                 onClick={() => runItem(it)}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <span style={{ fontSize: 20 }} aria-hidden="true">
                     {it.icon}
                   </span>
-                  <div>
-                    <div
-                      style={{ fontWeight: 600, color: "var(--color-ink)" }}
+                  <span>
+                    <span
+                      style={{ display: "block", fontWeight: 600, color: "var(--color-ink)" }}
                     >
                       {it.title}
-                    </div>
-                    <div
+                    </span>
+                    <span
                       style={{
+                        display: "block",
                         fontSize: 12,
                         color: "var(--color-mid-gray)"
                       }}
                     >
                       {it.subtitle}
-                    </div>
-                  </div>
-                </div>
-                <span className="badge badge-outline" style={{ fontSize: 10 }}>
+                    </span>
+                  </span>
+                </span>
+                <span aria-hidden="true" className="badge badge-outline" style={{ fontSize: 10 }}>
                   ↵ Seleccionar
                 </span>
-              </div>
+              </button>
             ))
           )}
         </div>

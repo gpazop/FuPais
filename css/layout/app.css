@@ -1,29 +1,40 @@
 /* ========================================================
-   FUPAIS — MAIN DASHBOARD & LAYOUT
-   Archetype: Clinical Blueprint on Frosted Paper
+   FUPAIS — LAYOUT PRINCIPAL Y DASHBOARD
+   Mobile-first: los estilos base sirven para móvil; se amplían
+   con @media (min-width: …) para tablet y escritorio.
    ======================================================== */
 
 .app-container {
   max-width: var(--page-max-width);
   margin: 0 auto;
-  padding: var(--spacing-24) var(--spacing-20) var(--spacing-48);
   width: 100%;
+  /* Reserva inferior para la navegación flotante + área segura */
+  padding: max(var(--space-4), var(--safe-top)) var(--space-4) var(--nav-reserve);
+  padding-left: max(var(--space-4), var(--safe-left));
+  padding-right: max(var(--space-4), var(--safe-right));
 }
 
-/* NAVBAR / HEADER */
+@media (min-width: 768px) {
+  .app-container {
+    padding: var(--space-6) var(--space-5) var(--nav-reserve);
+  }
+}
+
+/* ===================== HEADER ===================== */
 .header-bar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: var(--spacing-32);
-  gap: var(--spacing-16);
+  gap: var(--space-3);
   flex-wrap: wrap;
+  margin-bottom: var(--space-6);
 }
 
 .brand-section {
   display: flex;
   align-items: center;
-  gap: var(--spacing-12);
+  gap: var(--space-3);
+  min-width: 0;
 }
 
 .brand-logo {
@@ -32,9 +43,10 @@
   justify-content: center;
   width: 40px;
   height: 40px;
-  background-color: var(--color-ink);
-  color: #fafafa;
-  border-radius: 12px;
+  flex-shrink: 0;
+  background-color: var(--bg-inverse);
+  color: var(--txt-inverse);
+  border-radius: var(--radius-lg);
   font-weight: 700;
   font-size: 18px;
   letter-spacing: -0.5px;
@@ -45,106 +57,145 @@
   font-weight: var(--font-weight-semibold);
   letter-spacing: var(--tracking-heading-sm);
   line-height: 1.1;
-  color: var(--color-ink);
+  color: var(--txt-primary);
 }
 
 .brand-subtitle {
   font-size: 12px;
-  color: var(--color-mid-gray);
+  color: var(--txt-tertiary);
   margin-top: 2px;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: var(--spacing-8);
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
-/* DASHBOARD GRID SYSTEM */
+/* Accesos directos de móvil */
+.header-mobile-only { display: inline-flex; }
+
+@media (max-width: 767.98px) {
+  .header-actions { width: 100%; }
+  .header-actions .preset-selector-wrapper {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+  .header-actions .select { width: 100%; }
+  .header-actions .btn,
+  .dashboard-grid > .header-mobile-only { min-height: 44px; }
+}
+
+@media (min-width: 768px) {
+  .header-mobile-only { display: none; }
+}
+
+/* ===================== DASHBOARD GRID ===================== */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--spacing-24);
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
 }
+
+#calendario,
+#tramites { scroll-margin-block: var(--space-4) var(--nav-reserve); }
 
 @media (min-width: 1024px) {
   .dashboard-grid {
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    align-items: start;
   }
 }
 
-/* TOP METRICS ROW */
+/* ===================== FILA DE MÉTRICAS ===================== */
 .metrics-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--spacing-16);
-  margin-bottom: var(--spacing-24);
+  /* min(100%, 240px) evita desbordamiento en pantallas < 240px de contenido */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
 }
 
 .metric-card {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
-/* PROCEDURES & TASKS LIST */
+/* Tarjeta destacada (días restantes): protagonista en la jerarquía */
+.metric-card.metric-primary {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 768px) {
+  .metric-card.metric-primary { grid-column: auto; }
+}
+
+/* ===================== TRÁMITES ===================== */
 .procedure-list {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-8);
-  margin-top: var(--spacing-12);
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .procedure-item {
   display: flex;
   align-items: flex-start;
-  gap: var(--spacing-12);
-  padding: var(--spacing-12);
-  border-radius: var(--radius-nested);
-  background-color: var(--surface-sidebar);
-  border: 1px solid var(--color-hairline);
-  transition: all 0.15s ease;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  background-color: var(--bg-surface-2);
+  border: 1px solid var(--border-1);
+  transition: background-color var(--dur-fast) var(--ease-standard),
+    border-color var(--dur-fast) var(--ease-standard);
 }
 
 .procedure-item:hover {
-  background-color: #f3f3f3;
-  border-color: #d1d1d1;
+  background-color: var(--bg-hover);
+  border-color: var(--border-2);
 }
 
 .procedure-item.is-urgent {
-  border-left: 3px solid var(--color-ember);
+  border-left: 3px solid var(--danger);
 }
 
 .procedure-item.is-done {
-  opacity: 0.6;
+  opacity: 0.65;
 }
 
 .procedure-checkbox {
   margin-top: 3px;
-  accent-color: var(--color-ink);
-  width: 16px;
-  height: 16px;
+  accent-color: var(--accent);
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
   cursor: pointer;
 }
 
-.procedure-body {
-  flex: 1;
+@media (pointer: coarse) {
+  .procedure-checkbox { width: 22px; height: 22px; }
 }
+
+.procedure-body { flex: 1; min-width: 0; }
 
 .procedure-title {
   font-size: 13px;
   font-weight: var(--font-weight-medium);
-  color: var(--color-ink);
+  color: var(--txt-primary);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .procedure-desc {
   font-size: 12px;
-  color: var(--color-mid-gray);
+  color: var(--txt-tertiary);
   margin-top: 3px;
   line-height: 1.4;
 }
@@ -152,33 +203,50 @@
 .procedure-deadline {
   font-size: 11px;
   font-family: var(--font-mono);
-  color: var(--color-ember);
+  color: var(--danger);
   font-weight: 500;
-  margin-top: 4px;
+  margin-top: var(--space-1);
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
-/* COUNTRY SELECTOR STRIP */
+/* ===================== STRIP DE PAÍS ===================== */
 .country-strip {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-16);
-  padding: var(--spacing-16) var(--spacing-20);
-  background-color: var(--color-paper);
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--radius-cards);
-  margin-bottom: var(--spacing-24);
-  box-shadow: var(--shadow-subtle);
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-2xl);
+  margin-bottom: var(--space-6);
+  box-shadow: var(--shadow-1);
+}
+
+@media (min-width: 768px) {
+  .country-strip {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-5);
+  }
 }
 
 .country-details {
   display: flex;
   align-items: center;
-  gap: var(--spacing-12);
+  gap: var(--space-3);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.country-strip-actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .flag-avatar {
@@ -186,88 +254,92 @@
   line-height: 1;
 }
 
-/* MODAL OVERLAY */
+/* ===================== OVERLAY DE MODALES ===================== */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-color: rgba(10, 10, 10, 0.4);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--bg-overlay);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
-  padding: var(--spacing-16);
-}
-
-.modal-overlay.active {
-  display: flex;
+  padding: max(var(--space-3), var(--safe-top)) max(var(--space-3), var(--safe-right))
+    max(var(--space-3), var(--safe-bottom)) max(var(--space-3), var(--safe-left));
+  z-index: var(--z-dock);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .modal-card {
-  background-color: var(--color-paper);
-  border-radius: var(--radius-cards);
-  border: 1px solid var(--color-hairline);
-  box-shadow: var(--shadow-floating);
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-2xl);
+  border: 1px solid var(--border-1);
+  box-shadow: var(--shadow-3);
   width: 100%;
   max-width: 540px;
-  max-height: 90vh;
+  max-height: calc(100dvh - 2 * var(--space-4));
   overflow-y: auto;
-  padding: var(--spacing-24);
+  overscroll-behavior: contain;
+  padding: var(--space-5);
   position: relative;
-  animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: modalIn var(--dur-base) var(--ease-out);
+}
+
+@media (min-width: 640px) {
+  .modal-card { padding: var(--space-6); }
 }
 
 @keyframes modalIn {
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .modal-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: var(--spacing-20);
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
 }
 
 .modal-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--spacing-8);
-  margin-top: var(--spacing-24);
-  padding-top: var(--spacing-16);
-  border-top: 1px solid var(--color-hairline);
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-1);
+  flex-wrap: wrap;
 }
 
-/* HELPER CARDS / RULES ACCORDION */
+@media (max-width: 480px) {
+  .modal-footer { flex-direction: column-reverse; }
+  .modal-footer .btn { width: 100%; }
+}
+
+/* ===================== PILLS DE REGLA ===================== */
 .rule-pill-container {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-8);
-  margin-top: var(--spacing-12);
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .rule-pill {
   font-size: 12px;
   padding: 6px 12px;
-  background-color: var(--color-canvas);
-  border: 1px solid var(--color-hairline);
+  background-color: var(--bg-inset);
+  border: 1px solid var(--border-1);
   border-radius: var(--radius-badges);
-  color: var(--color-ink-soft);
+  color: var(--txt-secondary);
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
-.rule-pill strong {
-  color: var(--color-ink);
-}
+.rule-pill strong { color: var(--txt-primary); }

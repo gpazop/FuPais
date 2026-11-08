@@ -2,10 +2,17 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FuPais — Conteo de Días Fuera de tu País y Control Migratorio</title>
-  <meta name="description" content="App web de diseño blueprint para seguimiento de días fuera de tu país, control de estancias por intercambio, turismo, prórrogas de permanencia y trámites migratorios reales con Dock interactivo estilo iOS / macOS.">
-  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>FuPais — Control de días fuera de tu país y plazos migratorios</title>
+  <meta name="description" content="Calcula cuántos días llevas fuera de tu país, cuántos te quedan de estancia legal y cuándo debes radicar tu prórroga. Calendario migratorio, alertas de vencimiento y trámites oficiales por país.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="FuPais">
+  <meta property="og:title" content="FuPais — Control de días y plazos migratorios">
+  <meta property="og:description" content="Consulta los días restantes de tu estancia, el calendario y los trámites asociados a tu viaje.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f5f5f5" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d0f12" media="(prefers-color-scheme: dark)">
+
   <!-- Typography: Geist Google Font -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,11 +25,9 @@
   <link rel="stylesheet" href="css/layout/app.css">
   <link rel="stylesheet" href="css/components/dock.css">
 
-  <!-- Leaflet CSS: el JS NO se carga desde CDN. `leaflet` entra en el bundle
-       vía react-leaflet (nadie usa la global window.L), así que el <script> de
-       unpkg solo añadía ~148 kB render-blocking y un punto de fallo externo.
-       El CSS sí se toma del CDN porque las hojas de Leaflet no se importan
-       desde JS en este proyecto (convención de AGENTS.md). -->
+  <!-- Leaflet CSS desde CDN: las hojas de Leaflet no se importan desde JS en
+       este proyecto (convención de AGENTS.md). El JS de Leaflet NO se carga
+       desde CDN: entra en el bundle vía react-leaflet y nadie usa window.L. -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 
   <!-- Favicon (evita 404 en navegadores que solicitan /favicon.ico por defecto) -->
