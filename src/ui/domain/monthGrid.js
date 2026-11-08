@@ -78,8 +78,8 @@ export function buildMonthGrid({ year, month, metrics, customEvents = [] }) {
     const isAbroad = cellDate >= entryDate && cellDate <= expiryDate;
     const isDeadline = time === expiryDate.getTime();
     const isProrrogaWindow =
-      cellDate >= prorrogaWindowStartDate && cellDate <= safeDeadlineDate;
-    const isRiskWindow = cellDate > safeDeadlineDate && cellDate <= expiryDate;
+      !metrics.manual && cellDate >= prorrogaWindowStartDate && cellDate <= safeDeadlineDate;
+    const isRiskWindow = !metrics.manual && cellDate > safeDeadlineDate && cellDate <= expiryDate;
 
     // Contador de estancia: día de llegada = Día 1.
     const daysSinceEntry =

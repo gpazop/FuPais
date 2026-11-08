@@ -173,7 +173,7 @@ describe("useGeoTracking", () => {
     });
     expect(coords).toBeNull();
     expect(onNotify).toHaveBeenCalledWith(
-      expect.stringContaining("no soportada")
+      expect.stringContaining("no soportada"), "warning"
     );
     expect(result.current.locating).toBe(false);
   });
@@ -192,7 +192,7 @@ describe("useGeoTracking", () => {
     });
     expect(place).toBeNull();
     expect(onNotify).toHaveBeenCalledWith(
-      expect.stringContaining('No se encontró el lugar "Atlántida"')
+      expect.stringContaining('No se encontró el lugar "Atlántida"'), "warning"
     );
     expect(result.current.position).toEqual(before);
   });

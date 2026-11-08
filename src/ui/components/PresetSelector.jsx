@@ -24,9 +24,10 @@ export default function PresetSelector({
         className="select"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        style={{ maxWidth: 320, fontSize: 13 }}
+        style={{ fontSize: 13 }}
         title="Seleccionar perfil de normativa migratoria"
       >
+        <option value="" disabled>Estancia manual</option>
         {Object.values(MIGRATION_PRESETS).map((p) => (
           <option key={p.id} value={p.id}>
             {p.destinationCountry} — {p.visaType}

@@ -26,6 +26,7 @@ import Calendar from "./components/Calendar.jsx";
 import Toasts from "./components/Toast.jsx";
 import useToasts from "./hooks/useToasts.js";
 import Vault from "./components/Vault.jsx";
+import { getTripPreset } from "./domain/tripPreset.js";
 import ProfileView from "./components/ProfileView.jsx";
 import SettingsPanel from "./components/SettingsPanel.jsx";
 import useVaultFiles from "./hooks/useVaultFiles.js";
@@ -81,16 +82,8 @@ export default function App() {
   const vault = useVaultFiles();
   const playUiSound = useDockAudio(dockSettings.soundEnabled);
 
-  // --- getPreset (puro → identidad estable) ---
-  const getPreset = useCallback((presetId) => {
-    return MIGRATION_PRESETS[presetId] || MIGRATION_PRESETS.colombia_intercambio;
-  }, []);
-
-  // --- Preset activo: memo por presetId (no por el objeto state completo) ---
-  const preset = useMemo(
-    () => (state?.presetId ? getPreset(state.presetId) : null),
-    [state?.presetId, getPreset]
-  );
+  // --- Normativa aplicable al viaje confirmado ---
+  const preset = state ? getTripPreset(state) : null;
 
   // --- Trámites del preset con su estado done (identidad estable) ---
   const tasks = useMemo(() => {
@@ -109,6 +102,7 @@ export default function App() {
   const metrics = useDashboardMetrics({
     entryDateStr: state?.entryDateStr,
     allowedDays: state?.allowedDays,
+    manual: Boolean(state && !preset),
     countryCode: preset?.countryCode,
     ruleKey: preset?.ruleKey,
     tasks,
@@ -172,6 +166,22 @@ export default function App() {
     setConfigModalOpen(false);
   }, []);
 
+  const saveTrip = useCallback((trip) => {
+    setState((previous) => ({
+      ...previous,
+      ...trip,
+      completedProcedures: previous.presetId === trip.presetId
+        ? previous.completedProcedures : {}
+    }));
+    closeConfigModal();
+    notify("Viaje actualizado.", "success");
+  }, [setState, closeConfigModal, notify]);
+
+  const saveProfile = useCallback((personalProfile) => {
+    setState((previous) => ({ ...previous, personalProfile }));
+    notify("Perfil actualizado.", "success");
+  }, [setState, notify]);
+
   // --- openDayInspector (estable: guarda vía latestRef, sin closures de estado) ---
   const openDayInspector = useCallback((dateStr) => {
     if (!latestRef.current.state || !latestRef.current.metrics) return;
@@ -227,7 +237,7 @@ export default function App() {
             newAllowed - 1
           );
           notify(
-            `¡Prórroga Registrada! Tu estancia legal se ha extendido +${proc.extendsDays} días (hasta el ${formatDatePretty(newExpiry)}).`
+            `¡Prórroga Registrada! Tu estancia legal se ha extendido +${proc.extendsDays} días (hasta el ${formatDatePretty(newExpiry)}).`, "success"
           );
         } else {
           setState((prev) => ({
@@ -236,6 +246,8 @@ export default function App() {
           }));
           notify(`Se revirtió la extensión de ${proc.extendsDays} días.`);
         }
+      } else if (isChecked) {
+        notify("Trámite marcado como realizado.", "success");
       }
     },
     [latestRef, setState, notify]
@@ -319,7 +331,7 @@ export default function App() {
       if (count > 0) {
         playUiSound(1200, "triangle", 0.08);
         notify(
-          `¡${count} archivo(s) guardado(s) exitosamente en tu bóveda migratoria!`
+          `¡${count} ficha(s) guardada(s) en tu bóveda migratoria!`, "success"
         );
       }
     },
@@ -341,7 +353,8 @@ export default function App() {
   return (
     <div className="app-container">
       <Header
-        presetId={state?.presetId ?? "colombia_intercambio"}
+        presetId={preset?.id ?? ""}
+        onGoHome={() => { if (activeTab !== "inicio") handleTabChange("inicio"); }}
         onPresetChange={applyPreset}
         onOpenConfig={openConfigModal}
         onOpenSearch={() => setSpotlightOpen(true)}
@@ -368,14 +381,14 @@ export default function App() {
                     justifyContent: "center"
                   }}
                 >
-                  {preset?.countryCode || "CO"}
+                  {preset?.countryCode || "—"}
                 </div>
                 <div>
                   <h2 className="text-subheading" id="country-title" style={{ fontSize: 16 }}>
                     {state.destinationCountry} • {state.visaType}
                   </h2>
                   <p className="text-caption" id="country-subtitle" style={{ textTransform: "none", marginTop: 2 }}>
-                    País de origen: {state.originCountry} | Ingreso: {formatDatePretty(metrics.entryDate)} | Vencimiento: {formatDatePretty(metrics.expiryDate)}
+                    País de origen: {state.originCountry} | Ingreso: {formatDatePretty(metrics.entryDate)} | {preset ? "Vencimiento" : "Fin del periodo"}: {formatDatePretty(metrics.expiryDate)}
                   </p>
                 </div>
               </div>
@@ -383,10 +396,10 @@ export default function App() {
                 {/* Valores derivados de la normativa activa (windows.js +
                     COUNTRY_RULES): antes eran texto fijo, así que cualquier
                     preset mostraba la ventana y la extensión de Colombia. */}
-                <span className="rule-pill">
+                {preset && <span className="rule-pill">
                   <strong>Ventana Legal:</strong> {metrics.windowStartBeforeExpiry} a{" "}
                   {metrics.safeDeadlineBeforeExpiry} días previos
-                </span>
+                </span>}
                 {preset?.extendsDays ? (
                   <span className="rule-pill">
                     <strong>Extensión:</strong> +{preset.extendsDays} días
@@ -407,16 +420,18 @@ export default function App() {
               </div>
             </section>
 
-            <SmartAlert preset={preset} metrics={metrics} />
+            {preset ? <SmartAlert preset={preset} metrics={metrics} /> : (
+              <p className="card card-sm">Normativa automática no disponible. El conteo se basa en las fechas y la duración confirmadas.</p>
+            )}
 
             <section className="metrics-row">
               <MetricCard
                 label="Días Fuera de tu País"
                 value={metrics.daysAbroad}
-                sub={`/ ${metrics.totalPeriodDays} días autorizados`}
+                sub={`/ ${metrics.totalPeriodDays} días ${preset ? "autorizados" : "indicados"}`}
               />
               <MetricCard
-                label="Días Restantes de Estancia Legal"
+                label={preset ? "Días Restantes de Estancia Legal" : "Días restantes del periodo indicado"}
                 value={metrics.daysRemaining}
                 sub="días"
                 variant={metrics.isInsideOptimalWindow || metrics.isInsideRiskWindow || metrics.isExpired ? "warning" : "default"}
@@ -424,11 +439,11 @@ export default function App() {
                 progressPercent={metrics.percentElapsed}
                 footerLabel={`${metrics.percentElapsed}% de estancia completada`}
               />
-              <MetricCard
-                label="Ventana de Prórroga PTP"
-                value="15 a 5 Días"
+              {preset && <MetricCard
+                label="Ventana de Prórroga"
+                value={`${metrics.windowStartBeforeExpiry} a ${metrics.safeDeadlineBeforeExpiry} días`}
                 sub="previos a vencer"
-              />
+              />}
             </section>
 
             <main className="dashboard-grid">
@@ -447,7 +462,7 @@ export default function App() {
                     <div className="card-header-inner">
                       <h2 className="card-title">Trámites y Obligaciones</h2>
                       <p className="text-caption" style={{ textTransform: "none" }}>
-                        Hitos oficiales según tu calidad migratoria
+                        {preset ? "Hitos oficiales según tu calidad migratoria" : "Sin trámites verificados para esta estancia"}
                       </p>
                     </div>
                   </div>
@@ -503,7 +518,7 @@ export default function App() {
                       <div className="map-loading-panel" role="status">Cargando mapa…</div>
                     }>
                       <Map
-                        presetId={state?.presetId || null}
+                        presetId={preset?.id ?? null}
                         active={mapActive}
                         layerKey={mapLayer}
                         position={geo.position}
@@ -526,7 +541,7 @@ export default function App() {
 
               <CountryCards
                 onSelectPreset={applyPreset}
-                activePresetId={state?.presetId}
+                activePresetId={preset?.id}
               />
             </div>
           </section>
@@ -543,6 +558,7 @@ export default function App() {
               state={state}
               metrics={metrics}
               preset={preset}
+              onSaveProfile={saveProfile}
               onOpenConfig={openConfigModal}
             />
           </section>
@@ -585,35 +601,13 @@ export default function App() {
       <Toasts toasts={toasts} onDismiss={dismiss} />
 
       {/* Modal: Configurar viaje y fechas */}
-      <ConfigModal
-        open={configModalOpen}
-        onClose={closeConfigModal}
-        onSubmit={(data) => {
-          setState((prev) => ({ ...prev, ...data }));
-        }}
-        presetId={state?.presetId}
-        onPresetChange={applyPreset}
-        entryDateStr={state?.entryDateStr}
-        onEntryDateChange={(val) =>
-          setState((prev) => ({ ...prev, entryDateStr: val }))
-        }
-        originCountry={state?.originCountry}
-        onOriginCountryChange={(val) =>
-          setState((prev) => ({ ...prev, originCountry: val }))
-        }
-        destinationCountry={state?.destinationCountry}
-        onDestinationCountryChange={(val) =>
-          setState((prev) => ({ ...prev, destinationCountry: val }))
-        }
-        visaType={state?.visaType}
-        onVisaTypeChange={(val) =>
-          setState((prev) => ({ ...prev, visaType: val }))
-        }
-        allowedDays={state?.allowedDays}
-        onAllowedDaysChange={(val) =>
-          setState((prev) => ({ ...prev, allowedDays: val }))
-        }
-      />
+      {configModalOpen && state && (
+        <ConfigModal
+          trip={state}
+          onClose={closeConfigModal}
+          onSubmit={saveTrip}
+        />
+      )}
 
       {/* Modal: Detalle del día inspeccionado */}
       <DayModal

@@ -106,7 +106,7 @@ export function useGeoTracking({
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
         notifyRef.current?.(
-          "Geolocalización no soportada por el navegador. Haz clic en el mapa para fijar tu posición."
+          "Geolocalización no soportada por el navegador. Haz clic en el mapa para fijar tu posición.", "warning"
         );
         resolve(null);
         return;
@@ -127,7 +127,7 @@ export function useGeoTracking({
           if (request !== selection.current) return resolve(null);
           setLocating(false);
           notifyRef.current?.(
-            `GPS no disponible (${err.message}). Haz clic en el mapa para fijar tu posición.`
+            `GPS no disponible (${err.message}). Haz clic en el mapa para fijar tu posición.`, "error"
           );
           resolve(null);
         },
@@ -147,7 +147,7 @@ export function useGeoTracking({
         const place = await geocoding.searchPlace(q);
         if (request !== selection.current) return null;
         if (!place) {
-          notifyRef.current?.(`No se encontró el lugar "${q}"`);
+          notifyRef.current?.(`No se encontró el lugar "${q}"`, "warning");
           return null;
         }
         const applied = await applyManualPosition(place.lat, place.lng, request);
@@ -155,7 +155,7 @@ export function useGeoTracking({
       } catch (error) {
         if (request !== selection.current) return null;
         console.warn("Búsqueda de lugar falló:", error);
-        notifyRef.current?.(`No se pudo buscar "${q}" en este momento.`);
+        notifyRef.current?.(`No se pudo buscar "${q}" en este momento.`, "error");
         return null;
       }
     },

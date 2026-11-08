@@ -124,14 +124,16 @@ export default function Calendar({ metrics, customEvents = [], onDateSelect }) {
           <span className="legend-item">
             <span className="legend-box box-abroad"></span> Fuera del país
           </span>
+          {!metrics.manual && <>
           <span className="legend-item">
             <span className="legend-box box-prorroga"></span> Ventana Óptima
           </span>
           <span className="legend-item">
             <span className="legend-box box-risk"></span> Riesgo Demora (5d)
           </span>
+          </>}
           <span className="legend-item">
-            <span className="legend-box box-deadline"></span> Vencimiento Legal
+            <span className="legend-box box-deadline"></span> {metrics.manual ? "Fin del periodo indicado" : "Vencimiento Legal"}
           </span>
         </div>
       </div>
