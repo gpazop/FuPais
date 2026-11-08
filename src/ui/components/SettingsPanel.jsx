@@ -113,13 +113,13 @@ export default function SettingsPanel({ settings, onChange }) {
         </SettingsRow>
 
         <SettingsRow
-          title="Magnificación macOS"
+          title="Efecto de ampliación"
           desc="Los íconos vecinos crecen al pasar el mouse sobre el dock"
         >
           <IosSwitch
             checked={Boolean(settings.magnify)}
             onChange={(v) => onChange?.({ magnify: v })}
-            label="Magnificación macOS"
+            label="Efecto de ampliación"
           />
         </SettingsRow>
 
@@ -136,7 +136,7 @@ export default function SettingsPanel({ settings, onChange }) {
 
         <SettingsRow
           title="Sonidos de interfaz"
-          desc="Clics estilo Apple en dock, bóveda y overlays"
+          desc="Sonidos al interactuar con el Dock, la bóveda y los paneles"
         >
           <IosSwitch
             checked={Boolean(settings.soundEnabled)}

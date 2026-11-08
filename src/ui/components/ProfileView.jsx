@@ -6,9 +6,10 @@
 // la edición del viaje vive en ConfigModal (Ajustar Fechas).
 // ========================================================
 
+import PersonalProfile from "./PersonalProfile.jsx";
 import { formatDateISO, formatDatePretty } from "../../domain/dates.js";
 
-export default function ProfileView({ state, metrics, preset, onOpenConfig }) {
+export default function ProfileView({ state, metrics, preset, onOpenConfig, onSaveProfile }) {
   if (!state || !metrics) return null;
 
   const resolved = metrics.resolvedProcedures || [];
@@ -24,13 +25,14 @@ export default function ProfileView({ state, metrics, preset, onOpenConfig }) {
 
   return (
     <div className="profile-view-container">
+      {onSaveProfile && <PersonalProfile profile={state.personalProfile} onSave={onSaveProfile} />}
       {/* Tarjeta pasaporte */}
       <div className="passport-card">
         <div className="passport-watermark" aria-hidden="true">
-          {preset?.countryCode || "CO"}
+          {preset?.countryCode || ""}
         </div>
         <div className="passport-stamp-seal">
-          {metrics.statusBadge?.urgent ? "Atención" : "Vigente"}
+          {metrics.manual ? "Manual" : metrics.statusBadge?.urgent ? "Atención" : "Vigente"}
         </div>
         <div style={{ fontSize: 12, opacity: 0.75 }}>
           Perfil del Viajero · FuPais
@@ -66,7 +68,7 @@ export default function ProfileView({ state, metrics, preset, onOpenConfig }) {
           </span>
         </div>
         <div className="telemetry-row">
-          <span className="telemetry-label">Vencimiento legal</span>
+          <span className="telemetry-label">{metrics.manual ? "Fin del periodo indicado" : "Vencimiento legal"}</span>
           <span className="telemetry-value" style={{ fontSize: 12 }}>
             {formatDatePretty(metrics.expiryDate)} ({metrics.daysRemaining}{" "}
             días)
@@ -88,6 +90,10 @@ export default function ProfileView({ state, metrics, preset, onOpenConfig }) {
         </div>
       </div>
 
+      <section className="card profile-details">
+        <h2 className="text-heading-sm">Identificación y fotografía</h2>
+        <p>La incorporación de documentos de identidad y de una fotografía de perfil requiere una opción de almacenamiento adecuada.</p>
+      </section>
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <button
           className="btn btn-outline btn-sm"

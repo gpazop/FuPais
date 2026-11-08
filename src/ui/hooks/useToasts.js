@@ -27,9 +27,9 @@ export function useToasts({ duration = 4000 } = {}) {
   }, []);
 
   const notify = useCallback(
-    (message) => {
+    (message, kind = "info") => {
       const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-      setToasts((prev) => [...prev, { id, message }]);
+      setToasts((prev) => [...prev, { id, message, kind }]);
       const timer = setTimeout(() => {
         timersRef.current.delete(timer);
         setToasts((prev) => prev.filter((t) => t.id !== id));

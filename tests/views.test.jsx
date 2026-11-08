@@ -37,7 +37,7 @@ describe("<SettingsPanel />", () => {
     render(<SettingsPanel settings={settings} onChange={onChange} />);
     fireEvent.click(screen.getByLabelText("Auto-ocultar dock"));
     expect(onChange).toHaveBeenCalledWith({ autoHide: true });
-    fireEvent.click(screen.getByLabelText("Magnificación macOS"));
+    fireEvent.click(screen.getByLabelText("Efecto de ampliación"));
     expect(onChange).toHaveBeenCalledWith({ magnify: false });
   });
 

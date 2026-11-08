@@ -27,7 +27,7 @@ vi.mock("../src/ui/components/map/Map.jsx", () => ({
 import App from "../src/ui/App.jsx";
 import AppErrorBoundary from "../src/ui/components/AppErrorBoundary.jsx";
 import DayModal from "../src/ui/components/DayModal.jsx";
-import { STORAGE_KEY } from "../src/state/store.js";
+import { defaultState, STORAGE_KEY } from "../src/state/store.js";
 import { buildDashboard } from "../src/domain/dashboard.js";
 import { DOCK_STORAGE_KEY } from "../src/components/dock/constants.js";
 
@@ -253,4 +253,104 @@ describe("<DayModal /> (regresión: orden de hooks)", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });
+});
+
+describe("viaje y perfil confirmados", () => {
+  function openTrip() {
+    fireEvent.click(screen.getByRole("button", { name: "Ajustar fechas y perfil de viaje" }));
+    return within(screen.getByRole("dialog"));
+  }
+
+  it("descarta al cancelar, cerrar o pulsar Escape, incluso tras cambiar el preset", async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultState()));
+    render(<App />);
+    await screen.findByText("Días Fuera de tu País");
+    const original = localStorage.getItem(STORAGE_KEY);
+
+    for (const exit of ["Cancelar", "Cerrar", "Escape"]) {
+      const dialog = openTrip();
+      fireEvent.change(dialog.getByLabelText("Normativa de país de destino"), { target: { value: "peru_turista" } });
+      fireEvent.change(dialog.getByLabelText("Duración autorizada (días)"), { target: { value: "45" } });
+      expect(localStorage.getItem(STORAGE_KEY)).toBe(original);
+      expect(document.querySelector("#country-title").textContent).toContain("Colombia");
+      if (exit === "Escape") {
+        fireEvent.keyDown(dialog.getByLabelText("Fecha de ingreso"), { key: exit });
+      } else {
+        fireEvent.click(dialog.getByRole("button", { name: exit }));
+      }
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(localStorage.getItem(STORAGE_KEY)).toBe(original);
+    }
+  });
+
+  it("valida, guarda un destino manual y recarga el viaje sin una ventana legal heredada", async () => {
+    const { unmount } = render(<App />);
+    await screen.findByText("Días Fuera de tu País");
+    const dialog = openTrip();
+    const duration = dialog.getByLabelText("Duración autorizada (días)");
+    fireEvent.change(dialog.getByLabelText("País de destino"), { target: { value: "Japón" } });
+    fireEvent.change(dialog.getByLabelText("Fecha de ingreso"), { target: { value: "2026-10-01" } });
+    fireEvent.change(duration, { target: { value: "0" } });
+    fireEvent.submit(duration.form);
+    expect(dialog.getByRole("alert").textContent).toContain("duración");
+    fireEvent.change(duration, { target: { value: "60" } });
+    fireEvent.submit(duration.form);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(STORAGE_KEY))).toMatchObject({
+      presetId: null, destinationCountry: "Japón", allowedDays: 60, entryDateStr: "2026-10-01"
+    }));
+    expect(document.querySelector("#calendario").textContent).toContain("Fin del periodo indicado");
+    expect(document.querySelector("#calendario .day-prorroga-window")).toBeNull();
+    unmount();
+    render(<App />);
+    await screen.findByText(/Normativa automática no disponible/);
+    expect(openTrip().getByLabelText("Duración autorizada (días)").value).toBe("60");
+  });
+
+  it("vuelve a Inicio desde el mapa mediante la marca", async () => {
+    vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    render(<App />);
+    await screen.findByText("Días Fuera de tu País");
+    fireEvent.click(screen.getByLabelText("Mapa y Seguimiento"));
+    expect(document.getElementById("view-mapa").classList.contains("active")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "FuPais, ir a Inicio" }));
+    expect(document.getElementById("view-inicio").classList.contains("active")).toBe(true);
+  });
+
+  it("guarda solo los campos personales confirmados y los recupera al recargar", async () => {
+    const { unmount } = render(<App />);
+    await screen.findByText("Días Fuera de tu País");
+    const profile = within(document.getElementById("view-perfil"));
+    fireEvent.click(profile.getByRole("button", { name: "Editar perfil" }));
+    fireEvent.change(profile.getByLabelText("Nombre", { exact: true }), { target: { value: " Ana " } });
+    fireEvent.change(profile.getByLabelText("Nacionalidad"), { target: { value: "Perú" } });
+    fireEvent.click(profile.getByRole("button", { name: "Guardar perfil" }));
+    await waitFor(() => expect(JSON.parse(localStorage.getItem(STORAGE_KEY)).personalProfile).toEqual({
+      firstName: "Ana", nationality: "Perú"
+    }));
+    unmount();
+    render(<App />);
+    expect(await screen.findByText("Ana")).toBeTruthy();
+    expect(screen.queryByLabelText(/número de pasaporte/i)).toBeNull();
+  });
+});
+
+it("anuncia un trámite completado y mantiene el aviso al navegar y cambiar de tema", async () => {
+  vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+  render(<App />);
+  await screen.findByText("Días Fuera de tu País");
+  fireEvent.click(screen.getByRole("button", { name: "Claro" }));
+  const checkbox = document.querySelector("#tramites input:checked");
+  expect(checkbox).toBeTruthy();
+  fireEvent.click(checkbox);
+  fireEvent.click(checkbox);
+  const notice = document.querySelector('.toast-notice[data-kind="success"]');
+  expect(notice.textContent).toContain("Trámite marcado como realizado");
+  fireEvent.click(screen.getByLabelText("Mapa y Seguimiento"));
+  fireEvent.click(screen.getByRole("button", { name: "Oscuro" }));
+  expect(document.documentElement.dataset.theme).toBe("dark");
+  expect(document.querySelector(".toast-notice")).toBe(notice);
+  fireEvent.click(within(notice).getByRole("button", { name: "Cerrar notificación" }));
+  expect(document.querySelector(".toast-notice")).toBeNull();
 });

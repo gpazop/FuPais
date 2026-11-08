@@ -1,228 +1,123 @@
-import { useDialogFocus } from "../hooks/useDialogFocus.js";
-// ========================================================
-// FUPAIS — ConfigModal
-// Modal "Ajustar Fechas y Perfil de Viaje" como componente
-// React controlado. Sustituye la manipulación directa del
-// DOM en openConfigModal/handleConfigSubmit.
-// ========================================================
-
-import { useState, useEffect, useCallback } from "react";
-import Badge from "./Badge.jsx";
-import {
-  getCountryRule,
-  getStayTypeRuleKey
-} from "../../data/presets.js";
+import { useState } from "react";
 import { MIGRATION_PRESETS } from "../../data/migrationPresets.js";
-import {
-  formatDateISO,
-  formatDatePretty,
-  parseDate,
-  addDays
-} from "../../domain/dates.js";
+import { getTripPreset } from "../domain/tripPreset.js";
+import { getCountryRule } from "../../data/presets.js";
+import { addDays, formatDateISO, formatDatePretty, parseDate } from "../../domain/dates.js";
+import { useDialogFocus } from "../hooks/useDialogFocus.js";
+import CountrySelect, { normalizeCountry } from "./CountrySelect.jsx";
 
-export default function ConfigModal({
-  open,
-  onClose,
-  onSubmit,
-  presetId,
-  onPresetChange,
-  entryDateStr,
-  onEntryDateChange,
-  originCountry,
-  onOriginCountryChange,
-  destinationCountry,
-  onDestinationCountryChange,
-  visaType,
-  onVisaTypeChange,
-  allowedDays,
-  onAllowedDaysChange
-}) {
-  const [duration, setDuration] = useState(allowedDays ?? 90);
-  const [durationPreview, setDurationPreview] = useState("");
+export default function ConfigModal({ trip, onClose, onSubmit }) {
+  const [draft, setDraft] = useState(() => ({
+    presetId: trip.presetId,
+    entryDateStr: trip.entryDateStr,
+    allowedDays: trip.allowedDays,
+    originCountry: normalizeCountry(trip.originCountry ?? getTripPreset(trip)?.originCountry),
+    destinationCountry: normalizeCountry(trip.destinationCountry ?? getTripPreset(trip)?.destinationCountry),
+    visaType: trip.visaType ?? getTripPreset(trip)?.visaType ?? ""
+  }));
+  const [error, setError] = useState("");
+  const dialogRef = useDialogFocus(true, onClose);
+  const matchingPreset = getTripPreset({ ...draft, visaType: draft.visaType.trim() });
+  const rule = matchingPreset && getCountryRule(matchingPreset.countryCode, matchingPreset.stayType);
+  const previousLimit = matchingPreset?.id === getTripPreset(trip)?.id ? Number(trip.allowedDays) : 0;
+  const maxDays = Math.max(previousLimit, rule?.maxDaysInWindow ?? rule?.allowedDays ?? 3650);
+  const days = Number(draft.allowedDays);
+  const entry = parseDate(draft.entryDateStr);
+  const validDate = /^\d{4}-\d{2}-\d{2}$/.test(draft.entryDateStr) &&
+    Number.isFinite(entry.getTime()) && formatDateISO(entry) === draft.entryDateStr;
+  const registeredExtension = matchingPreset?.id === trip.presetId
+    ? matchingPreset?.procedures.find((procedure) =>
+      procedure.isExtensionAction && trip.completedProcedures?.[procedure.id]
+    )?.extendsDays ?? 0
+    : 0;
+  const minDays = registeredExtension + 1;
+  const validDays = Number.isInteger(days) && days >= minDays && days <= maxDays;
 
-  // Rebuild duration <option>s when preset or allowedDays change
-  const [durationOptions, setDurationOptions] = useState([]);
+  function change(field, value) {
+    setError("");
+    setDraft((previous) => ({ ...previous, [field]: value }));
+  }
 
-  // Al abrir el modal, la duración mostrada debe reflejar SIEMPRE el valor
-  // vigente (p. ej. después de registrar una prórroga de +90 días). Sin esta
-  // sincronización el modal conservaba el `allowedDays` del primer montaje y
-  // "Guardar y Recalcular" podía sobrescribir una prórroga ya registrada.
-  useEffect(() => {
-    if (open) setDuration(allowedDays ?? 90);
-  }, [open, allowedDays]);
+  function selectPreset(id) {
+    const next = MIGRATION_PRESETS[id];
+    setError("");
+    setDraft((previous) => ({
+      ...previous,
+      presetId: id || null,
+      ...(next && {
+        destinationCountry: next.destinationCountry,
+        visaType: next.visaType,
+        allowedDays: next.totalAllowedDays
+      })
+    }));
+  }
 
-  const rebuildDurationOptions = useCallback(() => {
-    const preset = MIGRATION_PRESETS[presetId];
-    if (!preset) return;
-    const rule = getCountryRule(preset.countryCode, preset.stayType);
-    const amounts = [];
-    const pushAmount = (days, note) => {
-      if (!Number.isInteger(days) || days < 1) return;
-      if (!amounts.some((a) => a.days === days)) amounts.push({ days, note });
-    };
-    if (rule) {
-      pushAmount(rule.allowedDays, "autorización inicial");
-      if (rule.maxDaysInWindow) pushAmount(rule.maxDaysInWindow, "tope del periodo");
-    } else {
-      pushAmount(preset.totalAllowedDays, "autorización inicial");
+  function submit(event) {
+    event.preventDefault();
+    if (!validDate || !validDays || !draft.originCountry || !draft.destinationCountry || !draft.visaType.trim()) {
+      setError("Selecciona ambos países e indica una fecha, un tipo de estancia y una duración válidos.");
+      return;
     }
-    pushAmount(allowedDays, "actual");
-    amounts.sort((a, b) => a.days - b.days);
-    setDurationOptions(amounts);
-  }, [presetId, allowedDays]);
-
-  useEffect(() => {
-    rebuildDurationOptions();
-  }, [rebuildDurationOptions]);
-
-  // Update preview when duration or entry date change
-  useEffect(() => {
-    const entry = parseDate(entryDateStr);
-    const days = Math.max(1, duration || 1);
-    const expiry = addDays(entry, days - 1);
-    setDurationPreview(
-      `El permiso vencería el ${formatDatePretty(expiry)} (la llegada cuenta como Día 1).`
-    );
-  }, [duration, entryDateStr]);
-
-  const dialogRef = useDialogFocus(open, onClose);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
     onSubmit({
-      entryDateStr,
-      allowedDays: duration,
-      originCountry,
-      destinationCountry,
-      visaType
+      presetId: matchingPreset?.id ?? null,
+      originCountry: draft.originCountry,
+      destinationCountry: draft.destinationCountry,
+      visaType: draft.visaType.trim(),
+      entryDateStr: draft.entryDateStr,
+      allowedDays: days
     });
-  };
-
-  if (!open) return null;
+  }
 
   return (
     <div className="modal-overlay active" id="config-modal">
       <div className="modal-card" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="config-modal-title" tabIndex={-1}>
         <div className="modal-header">
-          <h3 id="config-modal-title" className="text-heading-sm" style={{ fontSize: 20 }}>
-            Ajustar Fechas y Perfil de Viaje
-          </h3>
-          <button
-            className="btn btn-outline btn-sm"
-            onClick={onClose}
-            aria-label="Cerrar"
-            data-close-modal
-          >
-            ✕
-          </button>
+          <h3 id="config-modal-title" className="text-heading-sm">Ajustar Fechas y Perfil de Viaje</h3>
+          <button type="button" className="btn btn-outline btn-sm" onClick={onClose} aria-label="Cerrar">✕</button>
         </div>
-
-        <form id="form-config-trip" onSubmit={handleSubmit}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--spacing-16)" }}>
+        <form id="form-config-trip" onSubmit={submit}>
+          <div className="trip-form">
             <div className="input-group">
-              <label className="input-label" htmlFor="config-preset-select">
-                Normativa de País de Destino:
-              </label>
-              <select
-                id="config-preset-select"
-                className="select"
-                value={presetId}
-                onChange={(e) => onPresetChange(e.target.value)}
-              >
-                {Object.values(MIGRATION_PRESETS).map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.destinationCountry} — {p.visaType}
-                  </option>
+              <label className="input-label" htmlFor="config-preset-select">Normativa de país de destino</label>
+              <select className="select" id="config-preset-select" value={matchingPreset?.id ?? ""} onChange={(event) => selectPreset(event.target.value)}>
+                <option value="">Estancia manual</option>
+                {Object.values(MIGRATION_PRESETS).map((item) => (
+                  <option key={item.id} value={item.id}>{item.destinationCountry} — {item.visaType}</option>
                 ))}
               </select>
             </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--spacing-12)" }}>
-              <div className="input-group">
-                <label className="input-label" htmlFor="config-origin">País de Origen:</label>
-                <input
-                  type="text"
-                  id="config-origin"
-                  className="input"
-                  required
-                  value={originCountry}
-                  onChange={(e) => onOriginCountryChange(e.target.value)}
-                />
-              </div>
-              <div className="input-group">
-                <label className="input-label" htmlFor="config-destination">País de Destino:</label>
-                <input
-                  type="text"
-                  id="config-destination"
-                  className="input"
-                  required
-                  value={destinationCountry}
-                  onChange={(e) => onDestinationCountryChange(e.target.value)}
-                />
-              </div>
+            <div className="form-fields">
+              <CountrySelect id="config-origin" label="País de origen" value={draft.originCountry} onChange={(value) => change("originCountry", value)} required />
+              <CountrySelect id="config-destination" label="País de destino" value={draft.destinationCountry} onChange={(value) => change("destinationCountry", value)} required />
             </div>
-
             <div className="input-group">
-              <label className="input-label" htmlFor="config-visa">Tipo de Estancia / Visado:</label>
-              <input
-                type="text"
-                id="config-visa"
-                className="input"
-                required
-                value={visaType}
-                onChange={(e) => onVisaTypeChange(e.target.value)}
-              />
+              <label className="input-label" htmlFor="config-visa">Tipo de estancia o visado</label>
+              <input className="input" id="config-visa" required maxLength={100} value={draft.visaType} onChange={(event) => change("visaType", event.target.value)} />
             </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--spacing-12)" }}>
+            <div className="form-fields">
               <div className="input-group">
-                <label className="input-label" htmlFor="config-entry-date">Fecha de Salida / Ingreso:</label>
-                <input
-                  type="date"
-                  id="config-entry-date"
-                  className="input"
-                  required
-                  value={entryDateStr}
-                  onChange={(e) => onEntryDateChange(e.target.value)}
-                />
+                <label className="input-label" htmlFor="config-entry-date">Fecha de ingreso</label>
+                <input className="input" id="config-entry-date" type="date" required value={draft.entryDateStr} onChange={(event) => change("entryDateStr", event.target.value)} />
               </div>
               <div className="input-group">
-                <label className="input-label" htmlFor="config-duration">Duración Autorizada (días):</label>
-                <select
-                  id="config-duration"
-                  className="select"
-                  required
-                  value={duration}
-                  onChange={(e) => setDuration(parseInt(e.target.value, 10))}
-                >
-                  {durationOptions.map((a) => {
-                    const tag =
-                      a.note === "autorización inicial"
-                        ? "autorización inicial"
-                        : a.note === "actual"
-                        ? "actual"
-                        : "tope del periodo";
-                    return (
-                      <option key={a.days} value={a.days}>
-                        {a.days} días ({tag})
-                      </option>
-                    );
-                  })}
-                </select>
-                <div id="config-duration-preview" style={{ marginTop: 6, fontSize: 12, color: "var(--color-mid-gray)" }}>
-                  {durationPreview}
-                </div>
+                <label className="input-label" htmlFor="config-duration">Duración autorizada (días)</label>
+                <input className="input" id="config-duration" type="number" required min={minDays} max={maxDays} step={1} value={draft.allowedDays} onChange={(event) => change("allowedDays", event.target.value)} />
               </div>
             </div>
+            {registeredExtension > 0 && <p>La duración incluye una prórroga registrada de {registeredExtension} días.</p>}
+            {matchingPreset ? (
+              <p>Duración inicial sugerida por el preset: {matchingPreset.totalAllowedDays} días.</p>
+            ) : (
+              <p>Normativa automática no disponible para esta estancia. El conteo usará las fechas y la duración que confirmes.</p>
+            )}
+            {validDate && validDays && (
+              <p>Fin del periodo calculado: {formatDatePretty(addDays(entry, days - 1))}. La llegada cuenta como Día 1.</p>
+            )}
+            {error && <p role="alert">{error}</p>}
           </div>
-
           <div className="modal-footer">
-            <button type="button" className="btn btn-outline" onClick={onClose} data-close-modal>
-              Cancelar
-            </button>
-            <button type="submit" className="btn btn-primary">
-              Guardar y Recalcular
-            </button>
+            <button type="button" className="btn btn-outline" onClick={onClose}>Cancelar</button>
+            <button type="submit" className="btn btn-primary">Guardar y recalcular</button>
           </div>
         </form>
       </div>

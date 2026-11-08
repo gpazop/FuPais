@@ -441,3 +441,86 @@ body {
   width: 20px;
   height: 20px;
 }
+
+.trip-form,
+.profile-details {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.form-fields,
+.profile-summary {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+
+.form-fields > *,
+.profile-fields { min-width: 0; }
+
+.profile-fields {
+  padding: var(--space-3);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-lg);
+}
+
+.profile-details {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+}
+
+.profile-details > .btn { justify-self: start; }
+.profile-summary dt { color: var(--txt-secondary); }
+.profile-summary dd { margin: 0; }
+
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.toast-stack {
+  position: fixed;
+  inset-inline-end: max(var(--space-4), var(--safe-right));
+  inset-block-end: var(--nav-reserve);
+  z-index: var(--z-toast);
+  width: min(26rem, calc(100% - 2 * var(--space-4)));
+  display: grid;
+  gap: var(--space-2);
+  pointer-events: none;
+}
+
+.toast-stack .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.toast-notice {
+  --toast-accent: var(--info);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-1);
+  border-inline-start: 4px solid var(--toast-accent);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  color: var(--txt-primary);
+  box-shadow: var(--shadow-floating);
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+}
+
+.toast-notice[data-kind="success"] { --toast-accent: var(--success); }
+.toast-notice[data-kind="warning"] { --toast-accent: var(--warning); }
+.toast-notice[data-kind="error"] { --toast-accent: var(--danger); }
+.toast-icon { color: var(--toast-accent); font-weight: 700; }
+.toast-notice > .btn { min-width: 44px; min-height: 44px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast-notice { animation: modalIn .18s ease-out; }
+}

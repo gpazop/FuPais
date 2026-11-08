@@ -37,10 +37,10 @@ export default function DayModal({
     selectedDate >= metrics.entryDate && selectedDate <= metrics.expiryDate;
   const isDeadline = selectedDate.getTime() === metrics.expiryDate.getTime();
   const isProrroga =
-    selectedDate >= metrics.prorrogaWindowStartDate &&
+    !metrics.manual && selectedDate >= metrics.prorrogaWindowStartDate &&
     selectedDate <= metrics.safeDeadlineDate;
   const isRisk =
-    selectedDate > metrics.safeDeadlineDate &&
+    !metrics.manual && selectedDate > metrics.safeDeadlineDate &&
     selectedDate <= metrics.expiryDate;
 
   const dayProcs = metrics.resolvedProcedures.filter(
@@ -83,7 +83,7 @@ export default function DayModal({
               ) : (
                 <Badge variant="outline">Fuera de intervalo de viaje</Badge>
               )}
-              {isDeadline && <Badge variant="ember">Fecha Límite Legal</Badge>}
+              {isDeadline && <Badge variant="ember">{metrics.manual ? "Fin del periodo indicado" : "Fecha Límite Legal"}</Badge>}
               {isProrroga && <Badge variant="soft">Ventana Óptima de Radicación</Badge>}
               {isRisk && <Badge variant="ember">Riesgo Alto por Tiempos de Respuesta</Badge>}
             </div>

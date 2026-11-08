@@ -957,7 +957,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  max-width: var(--content-max);
+  max-width: 48rem;
+  margin-inline: auto;
   width: 100%;
 }
 

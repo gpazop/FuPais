@@ -13,12 +13,17 @@ export default function Header({
   onPresetChange,
   onOpenConfig,
   onOpenSearch,
+  onGoHome,
   statusBadge
 }) {
   return (
     <header className="header-bar">
       <div className="brand-section">
-        <div className="brand-logo" aria-hidden="true">Fu</div>
+        <button type="button" className="brand-logo brand-home" aria-label="FuPais, ir a Inicio" onClick={onGoHome}>
+          <svg width="36" height="36" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+            <path d="M15 48V16h21M15 30h15m7 3v9a6 6 0 0 0 12 0V30m-5 4 5-5 5 5" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
         <div>
           <div className="brand-title-row">
             <h1 className="brand-title">FuPais</h1>
@@ -37,22 +42,31 @@ export default function Header({
           label="Normativa de país de destino"
         />
 
-        <button
-          type="button"
-          className="btn btn-outline btn-sm header-mobile-only"
-          onClick={onOpenSearch}
-          aria-label="Buscar países, trámites o fechas"
-        >
-          <svg className="icon" viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          Buscar
-        </button>
+        <div className="header-buttons">
+          <button
+            type="button"
+            className="btn btn-outline btn-sm header-mobile-only"
+            onClick={onOpenSearch}
+            aria-label="Buscar países, trámites o fechas"
+          >
+            <svg className="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            Buscar
+          </button>
 
-        {/* El color del estado lo decide `buildDashboard` (statusBadge.type):
-            antes se forzaba `badge-solid`, así que un viaje vencido o en
-            riesgo se pintaba igual que uno al día. */}
+          <button
+            id="btn-open-config"
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={onOpenConfig}
+            aria-label="Ajustar fechas y perfil de viaje"
+          >
+            Ajustar Fechas
+          </button>
+        </div>
+
         <div
           id="header-status-badge"
           className={`badge ${statusBadge?.type ?? "badge-solid"}`}
@@ -61,15 +75,6 @@ export default function Header({
           <span className="badge-dot" aria-hidden="true"></span>
           {statusBadge?.label ?? "Verificando..."}
         </div>
-
-        <button
-          id="btn-open-config"
-          className="btn btn-outline btn-sm"
-          onClick={onOpenConfig}
-          aria-label="Ajustar fechas y perfil de viaje"
-        >
-          Ajustar Fechas
-        </button>
 
       </div>
     </header>

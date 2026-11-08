@@ -21,6 +21,7 @@ import { buildDashboard } from "../../domain/dashboard.js";
 export function useDashboardMetrics({
   entryDateStr,
   allowedDays,
+  manual = false,
   countryCode,
   ruleKey,
   tasks,
@@ -28,12 +29,23 @@ export function useDashboardMetrics({
 }) {
   return useMemo(() => {
     if (!entryDateStr) return null;
-    return buildDashboard({
+    const metrics = buildDashboard({
       profile: { entryDateStr, allowedDays, countryCode, ruleKey },
       tasks,
       today: todayKey
     });
-  }, [entryDateStr, allowedDays, countryCode, ruleKey, tasks, todayKey]);
+    if (!manual) return metrics;
+    return {
+      ...metrics,
+      manual: true,
+      prorrogaWindowStartDate: null,
+      safeDeadlineDate: null,
+      isInsideOptimalWindow: false,
+      isInsideRiskWindow: false,
+      isExpired: false,
+      statusBadge: { label: "Estancia manual", type: "badge-soft" }
+    };
+  }, [entryDateStr, allowedDays, manual, countryCode, ruleKey, tasks, todayKey]);
 }
 
 export default useDashboardMetrics;
